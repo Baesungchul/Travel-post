@@ -6,16 +6,32 @@ functions/node_modules/
 # 민감정보/개인 메모 (커밋 금지)
 keys.txt
 *.bak
+*.bak.*
+
+# 절대 커밋 금지 — 앱 서명 키 (유출 시 앱 위변조 위험)
+keystore/
+*.jks
+*.keystore
+
+# 절대 커밋 금지 — 비밀값/환경변수
+.env
+.env.local
+.env.*.local
 
 # 빌드/캐시 산출물
 .wrangler/
+.firebase/
 dist/
 build/
 .DS_Store
-android/
 ios/
 *.apk
 *.aab
+
+# 네이티브 — 산출물(build/·.gradle/·local.properties·assets/public 등)은
+# 캡시터가 만든 android/.gitignore 가 이미 걸러준다.
+# 여기서는 IDE 설정만 추가로 제외한다.
+android/.idea/
 
 # 로그
 npm-debug.log*

@@ -1,0 +1,43 @@
+# 폰 브라우저에서 화면·흐름을 확인하는 웹 미리보기.
+#   Firebase Hosting 미리보기 채널(app-test)에 올린다. 채널 이름이 고정이라 주소도 늘 같다.
+#   ⚠️ 운영 firebase.json 이 아니라 firebase.www.json 을 쓴다 (www 전체를 올리기 위해).
+#   ⚠️ 미리보기는 '새 기기'라 기록이 0건으로 보인다(정상). 백업/복구 메뉴는 건드리지 말 것.
+
+name: 웹 미리보기 배포
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 소스 받기
+        uses: actions/checkout@v4
+
+      - name: Node 준비
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: 미리보기 채널에 배포
+        env:
+          SA_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          if [ -z "$SA_JSON" ]; then
+            echo "::error::FIREBASE_SERVICE_ACCOUNT 시크릿이 없습니다."
+            exit 1
+          fi
+          printf '%s' "$SA_JSON" > "$RUNNER_TEMP/sa.json"
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
+          npx --yes firebase-tools@latest hosting:channel:deploy app-test \
+            --config firebase.www.json \
+            --project travel-post-52713 \
+            --expires 30d \
+            --non-interactive
+          rm -f "$RUNNER_TEMP/sa.json"
