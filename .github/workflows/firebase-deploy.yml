@@ -1,0 +1,70 @@
+# Firebase 자동 배포 — push 하면 규칙·함수·공개페이지가 실제 서비스에 반영된다.
+#   배포되는 것
+#     · firestore.rules / storage.rules  — 보안 규칙
+#     · functions                        — aiProxy(AI 글쓰기) · cleanupSnsPosts · deleteUserData
+#     · hosting (www/site)               — privacy.html · delete.html · post.html(PC 링크)
+#
+#   ⚠️ 필요한 것: 저장소 시크릿 FIREBASE_SERVICE_ACCOUNT (서비스 계정 JSON 전체)
+#      https://github.com/Baesungchul/Travel-post/settings/secrets/actions
+#      시크릿이 없으면 조용히 건너뛴다(빨간 X 안 뜸).
+#
+#   ⚠️ ANTHROPIC_API_KEY 는 여기에 두지 않는다. 이미 Google Secret Manager 에 있고
+#      functions/index.js 가 defineSecret 으로 가져다 쓴다.
+
+name: Firebase 배포
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: firebase-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 소스 받기
+        uses: actions/checkout@v4
+
+      - name: Node 준비
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: functions 의존성 설치
+        run: npm install --prefix functions --no-audit --no-fund
+
+      - name: 배포
+        env:
+          SA_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          if [ -z "$SA_JSON" ]; then
+            echo "::warning::FIREBASE_SERVICE_ACCOUNT 시크릿이 아직 없어 배포를 건너뜁니다."
+            echo "등록하는 곳: https://github.com/Baesungchul/Travel-post/settings/secrets/actions"
+            exit 0
+          fi
+          printf '%s' "$SA_JSON" > "$RUNNER_TEMP/sa.json"
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
+          set +e
+          npx --yes firebase-tools@latest deploy \
+            --only firestore:rules,storage,functions,hosting \
+            --project travel-post-52713 \
+            --non-interactive \
+            --force
+          CODE=$?
+          set -e
+          rm -f "$RUNNER_TEMP/sa.json"
+          if [ $CODE -ne 0 ]; then
+            echo "::error::배포 실패(코드 $CODE). 권한 문제라면 서비스 계정에 아래 역할이 필요합니다:"
+            echo "  Firebase 관리자 / Cloud Functions 관리자 / 서비스 계정 사용자 /"
+            echo "  Artifact Registry 관리자 / Cloud Build 편집자 / Secret Manager 보안 비밀 접근자"
+            echo "  (Google Cloud 콘솔 → IAM → 해당 서비스 계정 편집)"
+            exit $CODE
+          fi
+          echo "배포 완료 — 공개 페이지: https://travel-post-52713.web.app/"

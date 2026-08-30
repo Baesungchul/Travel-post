@@ -41,7 +41,7 @@
     MODEL:      'claude-sonnet-5',
 
     /* ── PC 링크 공개 페이지 (site/post.html 을 올린 주소) ── */
-    POST_BASE:  'TODO_HOSTING_URL/post.html',
+    POST_BASE:  'https://travel-post-52713.web.app/post.html',
     LINK_TTL_MS: 24 * 60 * 60 * 1000,            // 24시간 (현장매니저와 동일)
     LINK_MAX:   30,
 
