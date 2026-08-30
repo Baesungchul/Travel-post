@@ -1,0 +1,28 @@
+rules_version = '2';
+/* ═══════════════════════════════════════════════════════════
+   Storage 보안 규칙 — 찍고쓰다
+   ⚠️ 배포: firebase deploy --only storage
+   ☠️ 경로에 uid 가 들어가야 '남의 링크에 사진 끼워 넣기'를 규칙으로 막을 수 있다.
+═══════════════════════════════════════════════════════════ */
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    /* 클라우드 백업 사진 — 본인만 */
+    match /userPhotos/{uid}/{file} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+
+    /* PC 링크 사진 — 누구나 읽기(붙여넣기 대상이 네이버 서버다), 본인만 쓰기.
+       ⚠️ 24시간 뒤 서버 함수가 지운다(functions/cleanupSnsPosts). */
+    match /snsPosts/{uid}/{postId}/{file} {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.uid == uid
+                   && request.resource.size < 6 * 1024 * 1024
+                   && request.resource.contentType.matches('image/.*');
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

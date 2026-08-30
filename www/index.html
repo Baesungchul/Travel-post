@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
+<meta name="theme-color" content="#2F6B4F">
+<title>찍고쓰다</title>
+<link rel="icon" href="./icon.svg">
+<link rel="apple-touch-icon" href="./icon.svg">
+<link rel="manifest" href="./manifest.json">
+<link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+
+<header class="hdr">
+  <div class="logo-ic">📷</div>
+  <div>
+    <div class="logo-tx">찍고쓰다</div>
+    <div class="logo-sb">찍고 나오면 글이 완성돼 있어요 · <span id="appVersion"></span></div>
+  </div>
+  <button type="button" class="cat-chip hdr-sp" id="catChip">📍 카테고리</button>
+</header>
+
+<!-- ═══ 지금 ═══ 진행 중인 장소 한 곳 -->
+<section class="panel active" id="pnNow"></section>
+
+<!-- ═══ 기록 ═══ 장소 목록 -->
+<section class="panel" id="pnRecords"></section>
+
+<!-- ═══ 글 ═══ 저장된 글 목록 -->
+<section class="panel" id="pnPosts"></section>
+
+<!-- ═══ 설정 ═══ -->
+<section class="panel" id="pnSettings"></section>
+
+<button class="fab" id="fabNew" type="button" aria-label="새 장소">＋</button>
+
+<nav class="tabbar">
+  <button class="tab-item active" type="button" data-tab="now"><span class="ic">📸</span>지금</button>
+  <button class="tab-item" type="button" data-tab="records"><span class="ic">🗂</span>기록</button>
+  <button class="tab-item" type="button" data-tab="posts"><span class="ic">✍️</span>글</button>
+  <button class="tab-item" type="button" data-tab="settings"><span class="ic">⚙️</span>설정</button>
+</nav>
+
+<!-- 갤러리 불러오기(보조 경로) -->
+<input type="file" id="filePick" accept="image/*" multiple style="display:none">
+
+<!-- ⚠️ 로드 순서: 벤더 → 설정 → 토큰 → 카탈로그 → 프로필 → 저장소 → 상태 → 기능 → 화면
+     ⚠️ 새 파일을 넣으면 sw.js 의 SHELL 에도 넣고 VER 을 올릴 것 (tools/check.js 가 검사한다) -->
+<script src="./js/vendor/firebase-app-compat.js"></script>
+<script src="./js/vendor/firebase-auth-compat.js"></script>
+<script src="./js/vendor/firebase-firestore-compat.js"></script>
+<script src="./js/vendor/firebase-storage-compat.js"></script>
+
+<script src="./js/config.js"></script>
+<script src="./js/version.js"></script>
+<script src="./js/tokens.js"></script>
+<script src="./js/categories.js"></script>
+<script src="./js/profiles.js"></script>
+<script src="./js/store.js"></script>
+<script src="./js/state.js"></script>
+<script src="./js/image.js"></script>
+<script src="./js/native-fs.js"></script>
+<script src="./js/exif.js"></script>
+<script src="./js/photos.js"></script>
+<script src="./js/geo.js"></script>
+<script src="./js/camera.js"></script>
+<script src="./js/cloud.js"></script>
+<script src="./js/subscription.js"></script>
+<script src="./js/ai.js"></script>
+<script src="./js/share.js"></script>
+<script src="./js/backup.js"></script>
+<script src="./js/cloud_backup.js"></script>
+<script src="./js/map.js"></script>
+<script src="./js/trips.js"></script>
+<script src="./js/plans.js"></script>
+<script src="./js/calendar.js"></script>
+<script src="./js/tabbar.js"></script>
+<script src="./js/ui_now.js"></script>
+<script src="./js/ui_records.js"></script>
+<script src="./js/ui_posts.js"></script>
+<script src="./js/ui_settings.js"></script>
+<script src="./js/app.js"></script>
+</body>
+</html>

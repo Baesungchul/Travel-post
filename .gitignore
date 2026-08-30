@@ -1,0 +1,22 @@
+# 의존성 (npm install로 재생성됨)
+node_modules/
+proxy/node_modules/
+functions/node_modules/
+
+# 민감정보/개인 메모 (커밋 금지)
+keys.txt
+*.bak
+
+# 빌드/캐시 산출물
+.wrangler/
+dist/
+build/
+.DS_Store
+android/
+ios/
+*.apk
+*.aab
+
+# 로그
+npm-debug.log*
+*.log

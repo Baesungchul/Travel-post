@@ -1,0 +1,13 @@
+name = "travel-post-ai-proxy"
+main = "src/index.js"
+compatibility_date = "2025-01-01"
+
+# 아래 project_id는 실제 값으로 바꿔서 써도 되고,
+# 그냥 secret 대신 vars로 둬도 됨 (민감정보 아님, 이미 config.js에도 공개돼있는 값)
+[vars]
+FIREBASE_PROJECT_ID = "travel-post-52713"
+
+# ANTHROPIC_API_KEY는 여기 적지 않는다! (파일에 적으면 노출됨)
+# 대신 배포 후 터미널에서:
+#   npx wrangler secret put ANTHROPIC_API_KEY
+# 를 실행해서 비밀값으로 별도 저장한다. (README_배포방법.md 참고)

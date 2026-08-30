@@ -1,0 +1,16 @@
+{
+  "name": "travel-post-ai-proxy",
+  "version": "1.0.0",
+  "private": true,
+  "description": "찍고쓰다 앱의 AI 프록시 서버 (Cloudflare Workers) - Firebase 로그인 검증 후 Anthropic API로 전달",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^3.90.0"
+  },
+  "dependencies": {
+    "jose": "^5.9.6"
+  }
+}

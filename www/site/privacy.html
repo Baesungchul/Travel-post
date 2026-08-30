@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>개인정보처리방침 - 찍고쓰다</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Malgun Gothic", sans-serif;
+         max-width: 720px; margin: 0 auto; padding: 24px 20px 60px; line-height: 1.7; color: #222; }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  .updated { color: #777; font-size: 14px; margin-bottom: 28px; }
+  h2 { font-size: 17px; margin-top: 32px; border-left: 4px solid #333; padding-left: 10px; }
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 14px; }
+  th, td { border: 1px solid #ddd; padding: 8px 10px; text-align: left; vertical-align: top; }
+  th { background: #f5f5f5; }
+  ul { padding-left: 20px; }
+  .contact { background: #f7f7f7; border-radius: 8px; padding: 14px 16px; margin-top: 8px; }
+</style>
+</head>
+<body>
+
+<h1>개인정보처리방침</h1>
+<div class="updated">시행일: 2026년 8월 30일</div>
+
+<p>&ldquo;찍고쓰다&rdquo;(이하 &ldquo;앱&rdquo;)는 이용자의 개인정보를 소중히 다루며, 관련 법령을 준수합니다.
+본 방침은 앱이 어떤 정보를 수집하고, 어떻게 이용·보관하는지 안내합니다.</p>
+
+<h2>1. 수집하는 개인정보 항목</h2>
+<table>
+  <tr><th>구분</th><th>수집 항목</th><th>수집 방법</th></tr>
+  <tr><td>계정</td><td>이메일 주소, 비밀번호(암호화 저장)</td><td>회원가입 시 입력</td></tr>
+  <tr><td>콘텐츠</td><td>촬영/업로드한 사진, 사진의 촬영일시·위치정보(EXIF), 작성한 글(장소명, 방문일, 메모 등)</td><td>앱 이용 중 생성</td></tr>
+  <tr><td>기기정보</td><td>기기 모델, OS 버전, 앱 버전(오류 확인용)</td><td>자동 수집</td></tr>
+</table>
+<p>사진의 위치정보(GPS)는 이용자가 촬영한 사진에 포함된 경우에만 수집되며, 지도 표시·게시글 자동완성 등 앱 기능을 위해서만 사용됩니다.</p>
+
+<h2>2. 개인정보의 저장 위치와 이용 목적</h2>
+<ul>
+  <li><b>기기 내 저장(기본)</b>: 사진과 작성한 글은 기본적으로 이용자의 기기(로컬 저장소)에 저장되며, 앱의 핵심 기능은 서버 없이 기기 안에서 동작합니다.</li>
+  <li><b>로그인</b>: 이메일/비밀번호 인증에는 Google Firebase Authentication을 이용합니다.</li>
+  <li><b>클라우드 백업(선택)</b>: 이용자가 백업 기능을 사용하는 경우에만, 데이터가 Google Firebase 서버에 암호화되어 저장됩니다. 백업하지 않으면 서버로 전송되지 않습니다.</li>
+  <li><b>PC 연동 공유(선택)</b>: 이용자가 &ldquo;PC로 보내기&rdquo;를 실행한 게시글만 임시로 서버에 저장되어, 발급된 링크를 통해 확인할 수 있습니다.</li>
+  <li><b>AI 글쓰기 보조(선택)</b>: AI로 글 초안 작성을 요청하면, 이용자가 입력한 텍스트(장소명, 키워드 등)만 앱의 중계 서버를 거쳐 AI 처리 업체(Anthropic)로 전송됩니다. 사진 원본은 전송되지 않습니다.</li>
+  <li><b>지도 표시(선택)</b>: 지도 위에 장소를 표시하기 위해 장소명/좌표 정보가 Kakao 지도 API로 전송됩니다.</li>
+</ul>
+
+<h2>3. 개인정보의 보유 및 이용 기간</h2>
+<p>이용자가 회원 탈퇴(계정 삭제)를 요청하면, 서버(Firebase)에 저장된 백업 데이터와 계정 정보는 지체 없이 삭제됩니다.
+기기에 저장된 데이터는 앱을 삭제하거나 기기 내에서 직접 삭제할 때까지 유지됩니다. 자세한 절차는
+<a href="delete.html">계정 및 데이터 삭제 안내</a>를 참고해 주세요.</p>
+
+<h2>4. 개인정보의 제3자 제공 및 처리위탁</h2>
+<table>
+  <tr><th>제공받는 자</th><th>목적</th><th>제공 항목</th></tr>
+  <tr><td>Google Firebase</td><td>로그인 인증, 클라우드 백업, PC 연동 공유</td><td>이메일, 백업 데이터(사진·글, 선택 시에만)</td></tr>
+  <tr><td>Anthropic</td><td>AI 글 초안 생성</td><td>이용자가 입력한 텍스트(장소명, 키워드 등)</td></tr>
+  <tr><td>Kakao</td><td>지도 표시, 좌표 변환</td><td>장소명, 좌표</td></tr>
+</table>
+
+<h2>5. 이용자의 권리</h2>
+<p>이용자는 언제든지 본인의 개인정보 열람, 정정, 삭제를 요청할 수 있습니다. 앱 내 설정 화면에서 직접 처리하거나,
+아래 연락처로 요청해 주시면 지체 없이 조치합니다.</p>
+
+<h2>6. 문의처</h2>
+<div class="contact">
+  찍고쓰다 개발자<br>
+  이메일: <a href="mailto:bsc500327@gmail.com">bsc500327@gmail.com</a>
+</div>
+
+<h2>7. 개정</h2>
+<p>본 방침은 관련 법령 및 서비스 변경에 따라 개정될 수 있으며, 변경 시 앱 내 공지 또는 본 페이지를 통해 안내합니다.</p>
+
+</body>
+</html>

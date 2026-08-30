@@ -1,0 +1,40 @@
+rules_version = '2';
+/* ═══════════════════════════════════════════════════════════
+   Firestore 보안 규칙 — 찍고쓰다
+   ⚠️ 배포: firebase deploy --only firestore:rules
+   ☠️ 원칙: 남의 uid 밑에는 쓸 수 없다. PC 링크 페이지만 예외로 '읽기'가 열린다.
+═══════════════════════════════════════════════════════════ */
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /* 사용자 데이터 — 본인만 */
+    match /users/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+      match /{sub=**} {
+        allow read, write: if request.auth != null && request.auth.uid == uid;
+      }
+    }
+
+    /* PC 링크 글 — 주소를 아는 사람은 누구나 **읽기만**.
+       ⚠️ 앱이 "주소를 아는 사람은 볼 수 있다"고 사용자에게 알려준다(share.js 안내 문구).
+       ⚠️ 만든 사람만 쓰기·삭제. 남의 링크에 사진을 끼워 넣지 못하게 uid 를 강제한다. */
+    match /sns_posts/{id} {
+      allow read: if true;
+      allow create: if request.auth != null
+                    && request.resource.data.uid == request.auth.uid
+                    && request.resource.data.photos.size() <= 30;
+      allow update, delete: if request.auth != null && resource.data.uid == request.auth.uid;
+    }
+
+    /* 계정 삭제 요청 — 본인이 자기 것만 남길 수 있다. 읽기는 서버 함수만(=클라이언트 불가). */
+    match /deletion_requests/{uid} {
+      allow create: if request.auth != null && request.auth.uid == uid;
+      allow read, update, delete: if false;
+    }
+
+    /* 그 밖은 전부 막는다 */
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
