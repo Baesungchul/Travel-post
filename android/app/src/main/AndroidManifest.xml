@@ -11,6 +11,7 @@
 
         <activity
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode"
+            android:screenOrientation="portrait"
             android:name=".MainActivity"
             android:label="@string/title_activity_main"
             android:theme="@style/AppTheme.NoActionBarLaunch"
@@ -38,4 +39,19 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- 촬영: www/js/camera.js 의 navigator.mediaDevices.getUserMedia 가 쓴다.
+         이 줄이 없으면 앱 안 카메라가 열리지 않고 조용히 거부된다. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+
+    <!-- 위치: www/js/geo.js 의 navigator.geolocation 이 쓴다 (사진에 장소 붙이기).
+         COARSE 도 함께 선언해야 사용자가 '대략적인 위치'만 허용해도 동작한다. -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
+    <!-- 카메라가 없는 기기(태블릿 등)에서도 설치는 되게 한다. -->
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
+    <uses-feature android:name="android.hardware.location" android:required="false" />
+    <uses-feature android:name="android.hardware.location.gps" android:required="false" />
 </manifest>
