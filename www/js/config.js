@@ -36,9 +36,9 @@
     /* ── AI 프록시 ──
        ⚠️ 인증 없는 프록시를 만들지 말 것. 서버가 Authorization 헤더를 검사하고,
           앱은 로그인 사용자의 Firebase ID 토큰을 실어 보낸다. */
-    PROXY_URL:  'TODO_PROXY_URL',
+    PROXY_URL:  'https://asia-northeast3-travel-post-52713.cloudfunctions.net/aiProxy',
     PROXY_AUTH: true,                            // false 로 두지 말 것 (개발 중 임시만)
-    MODEL:      'claude-sonnet-4-6',
+    MODEL:      'claude-sonnet-5',
 
     /* ── PC 링크 공개 페이지 (site/post.html 을 올린 주소) ── */
     POST_BASE:  'TODO_HOSTING_URL/post.html',
