@@ -40,6 +40,11 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
+      - name: 비밀 키 주입 (카카오 REST 키)
+        env:
+          KAKAO_REST_KEY: ${{ secrets.KAKAO_REST_KEY }}
+        run: node tools/inject-keys.js
+
       - name: 웹 자산 동기화
         run: npx cap sync android
 

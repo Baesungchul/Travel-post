@@ -25,6 +25,11 @@ jobs:
         with:
           node-version: '22'
 
+      - name: 비밀 키 주입 (카카오 REST 키)
+        env:
+          KAKAO_REST_KEY: ${{ secrets.KAKAO_REST_KEY }}
+        run: node tools/inject-keys.js
+
       - name: 미리보기 채널에 배포
         env:
           SA_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}

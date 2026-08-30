@@ -46,12 +46,17 @@
     LINK_MAX:   30,
 
     /* ── 장소 검색 ──
-       ⬜ 미확인(설계안 10장): 카카오 로컬 API 무료 쿼터·약관·상업적 이용 조건.
-          키를 넣기 전까지 '주변 장소 자동 채움'은 꺼진 채로 동작한다. */
+       ☠️ REST 키는 여기에 직접 적지 말 것. 이 저장소는 공개라 커밋하면 바로 털린다.
+          (JS 키와 달리 REST 키에는 도메인 제한이 없다)
+          실제 값은 깃허브 시크릿 KAKAO_REST_KEY 에 두고,
+          빌드/배포할 때 tools/inject-keys.js 가 이 자리에 끼워 넣는다.
+          그래서 로컬(npx serve www)에서는 '주변 장소 찾기'가 꺼진 채로 보이는 것이 정상이다.
+       참고: 카카오 로컬 API 는 상업적 이용이 가능하나, 이 API 를 쓰는 기능 자체에
+             별도로 요금을 매기는 것은 금지된다 -> 지도/장소검색은 유료 기능에서 제외해 둠. */
     KAKAO_REST_KEY: 'TODO_KAKAO_REST_KEY',
     /* ⚠️ 지도(JS SDK)는 REST 키가 아니라 **JavaScript 키**를 쓴다 — 서로 다른 값이다.
        또 카카오 개발자 콘솔에 이 앱의 도메인을 등록해야 지도가 뜬다. */
-    KAKAO_JS_KEY: 'TODO_KAKAO_JS_KEY',
+    KAKAO_JS_KEY: '7c6b3a6ba30f09cf55bbe5e82c4859f1',
     KAKAO_LOCAL_URL: 'https://dapi.kakao.com/v2/local/search/category.json',
     KAKAO_KEYWORD_URL: 'https://dapi.kakao.com/v2/local/search/keyword.json'
   };
