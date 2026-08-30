@@ -30,8 +30,9 @@ jobs:
           SA_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         run: |
           if [ -z "$SA_JSON" ]; then
-            echo "::error::FIREBASE_SERVICE_ACCOUNT 시크릿이 없습니다."
-            exit 1
+            echo "::warning::FIREBASE_SERVICE_ACCOUNT 시크릿이 아직 없어 웹 미리보기를 건너뜁니다."
+            echo "등록하는 곳: https://github.com/Baesungchul/Travel-post/settings/secrets/actions"
+            exit 0
           fi
           printf '%s' "$SA_JSON" > "$RUNNER_TEMP/sa.json"
           export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
