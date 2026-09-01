@@ -49,7 +49,7 @@
              .debug 둘 다)에 등록해야 한다 — 안 하면 로그인창이 뜨자마자 조용히 실패한다
              (현장매니저에서 실제로 겪은 문제, 2026-08-30 수정 이력 참고).
           테스트 APK 의 디버그 키 SHA-1: FA:90:5F:18:F9:44:8B:85:F3:20:01:71:B9:98:7E:5C:59:89:F7:34 */
-    GOOGLE_WEB_CLIENT_ID: 'TODO_GOOGLE_WEB_CLIENT_ID',
+    GOOGLE_WEB_CLIENT_ID: '53661457167-3tengqvb2vajacgpnth7pkl53f0rtf0f.apps.googleusercontent.com',
 
     /* ── PC 링크 공개 페이지 (site/post.html 을 올린 주소) ── */
     POST_BASE:  'https://travel-post-52713.web.app/post.html',
