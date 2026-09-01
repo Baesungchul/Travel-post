@@ -266,6 +266,7 @@ textarea.inp{ resize:vertical; min-height:78px; line-height:1.6; }
 .m-trip{ background:#7C5CFF; }
 .m-plan{ background:var(--ac2); }
 .m-place{ background:#E0A32E; }
+.m-post{ background:var(--ac); }
 .cal-legend{ display:flex; gap:14px; justify-content:center; margin:10px 0 4px;
              font-size:11.5px; color:var(--mu); }
 .cal-legend span{ display:inline-flex; align-items:center; gap:5px; }
@@ -308,6 +309,7 @@ textarea.inp{ resize:vertical; min-height:78px; line-height:1.6; }
 .cal-icos .ci{ font-size:9.5px; font-weight:700; white-space:nowrap; }
 .cal-icos .ci.plan{ color:var(--ac2); }
 .cal-icos .ci.place{ color:#E0A32E; }
+.cal-icos .ci.post{ color:var(--ac); }
 
 /* 펼친 목록 보기 — 격자 자리에 세로 목록이 들어간다(자기 안에서 스크롤) */
 .cal-agenda{ display:block !important; overflow-y:auto !important; -webkit-overflow-scrolling:touch;
@@ -331,6 +333,10 @@ textarea.inp{ resize:vertical; min-height:78px; line-height:1.6; }
         overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
 .ag-tx.done{ opacity:.55; text-decoration:line-through; }
 .ag-rt{ font-size:11px; color:var(--mu); font-weight:700; flex:none; }
+/* 목록 보기의 '이미 쓴 글' 배지 — .row .postBadge(기록 탭 목록)와 같은 뜻, ag-row 크기에 맞췄다 (2026-09-02) */
+.ag-row .postBadge{ flex:none; font-size:10.5px; font-weight:700; padding:2px 9px; border-radius:999px;
+        background:var(--ac); color:#fff; border:none; }
+.ag-row .postBadge:active{ opacity:.8; }
 .ag-empty{ display:flex; flex-direction:column; align-items:center; justify-content:center;
            gap:6px; height:100%; min-height:160px; color:var(--mu); font-size:13px; text-align:center; }
 

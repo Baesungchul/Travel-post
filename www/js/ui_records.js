@@ -117,6 +117,8 @@
   };
 
   UI.openTripById = function (id) { openTrip(id); };
+  /* 달력(calendar.js)의 '이미 쓴 글' 배지가 여러 글 중 고를 때 같은 시트를 쓴다 (2026-09-02) */
+  UI.openPlaceSheet = function (id) { openPlaceSheet(id); };
 
   /* ── 여행 목록 ── */
   function renderTrips(box) {

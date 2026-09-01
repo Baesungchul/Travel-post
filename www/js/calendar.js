@@ -19,6 +19,9 @@
 
   var Cal = window.Cal = {};
   var _y, _m, _sel = null, _host = null;
+  /* 장소별 '이미 쓴 글' 묶음 — collect() 가 채우고, 달력 칸·목록·상세 배지가 함께 읽는다
+     (사용자 요청 2026-09-02: 달력에 글 작성 여부 표시). */
+  var _postsByPlace = {};
 
   /* ── 펼치기(확대) 상태 ────────────────────────────────────
      현장매니저와 '같은 손짓'을 쓴다:
@@ -85,13 +88,24 @@
     var from = ds(y, m, 1);
     var last = new Date(y, m + 1, 0).getDate();
     var to = ds(y, m, last);
-    return Promise.all([Store.placeAll(), Plans.all(), Trips.all()]).then(function (r) {
+    return Promise.all([Store.placeAll(), Plans.all(), Trips.all(), Store.postAll()]).then(function (r) {
       var byDate = {};
       function slot(d) { return (byDate[d] = byDate[d] || { places: [], plans: [], trips: [] }); }
 
+      /* 장소별로 쓴 글을 묶어 둔다 — 칸·목록·상세에서 '✍️ 글' 표시를 하고
+         눌러서 바로 그 글을 열기 위해서다 (사용자 요청 2026-09-02).
+         postAll() 이 최신순 정렬이라 [0]이 가장 최근 글이다. */
+      _postsByPlace = {};
+      (r[3] || []).forEach(function (o) {
+        (_postsByPlace[o.placeId] = _postsByPlace[o.placeId] || []).push(o);
+      });
+
       r[0].forEach(function (p) {
         var d = String(p.visitedAt || '').slice(0, 10);
-        if (d >= from && d <= to) slot(d).places.push(p);
+        if (d >= from && d <= to) {
+          p._postCount = (_postsByPlace[p.id] || []).length;
+          slot(d).places.push(p);
+        }
       });
       r[1].forEach(function (pl) {
         if (pl.date >= from && pl.date <= to) slot(pl.date).plans.push(pl);
@@ -121,12 +135,14 @@
     if (key === _sel) cls += ' sel';
     if (dow === 0 || hol) cls += ' sun'; else if (dow === 6) cls += ' sat';
 
+    var postN = s.places.reduce(function (n, p) { return n + (p._postCount || 0); }, 0);
     var inner;
     if (expandedGrid) {
       var ic = '';
       if (s.trips.length)  ic += '<b class="ci trip">🧳</b>';
       if (s.plans.length)  ic += '<b class="ci plan">📌' + (s.plans.length > 1 ? s.plans.length : '') + '</b>';
       if (s.places.length) ic += '<b class="ci place">📷' + (s.places.length > 1 ? s.places.length : '') + '</b>';
+      if (postN)            ic += '<b class="ci post">✍️' + (postN > 1 ? postN : '') + '</b>';
       inner = '<span class="n">' + d + '</span>' +
               (hol ? '<span class="hol">' + esc(hol.slice(0, 4)) + '</span>' : '') +
               '<span class="cal-icos">' + ic + '</span>';
@@ -135,6 +151,7 @@
       if (s.trips.length) marks += '<i class="m-trip"></i>';
       if (s.plans.length) marks += '<i class="m-plan"></i>';
       if (s.places.length) marks += '<i class="m-place"></i>';
+      if (postN) marks += '<i class="m-post"></i>';
       inner = '<span class="n">' + d + '</span>' +
               (hol ? '<span class="hol">' + esc(hol.slice(0, 4)) + '</span>' : '') +
               '<span class="marks">' + marks + '</span>';
@@ -191,9 +208,12 @@
       });
       s.places.forEach(function (p) {
         var snap = p.profileSnap || {};
+        var postN = p._postCount || 0;
         rows += '<div class="ag-row calPlace" data-id="' + p.id + '"><span class="ag-ic">' +
                 esc(snap.icon || '📷') + '</span>' +
                 '<span class="ag-tx">' + esc(p.name || '(이름 없음)') + '</span>' +
+                (postN ? '<button type="button" class="postBadge" data-pid="' + p.id +
+                  '" title="눌러서 쓴 글 열기">✍️' + (postN > 1 ? ' ' + postN : '') + '</button>' : '') +
                 '<span class="ag-rt">사진 ' + (p.photos || []).length + '</span></div>';
       });
 
@@ -261,7 +281,8 @@
           '<span class="cal-grab-tx">' + (_expanded ? '⬆️ 위로 밀어 접기' : '⬇️ 아래로 당겨 크게 보기') + '</span>' +
         '</div>' +
         '<div class="cal-legend"><span><i class="m-trip"></i> 여행</span>' +
-          '<span><i class="m-plan"></i> 일정</span><span><i class="m-place"></i> 기록</span></div>' +
+          '<span><i class="m-plan"></i> 일정</span><span><i class="m-place"></i> 기록</span>' +
+          '<span><i class="m-post"></i> 글</span></div>' +
         '<div id="calDay"></div>';
 
       _host.querySelector('#calPrev').onclick = function () { move(-1); };
@@ -296,6 +317,7 @@
       /* 목록 보기의 행들도 접힌 상세와 똑같이 동작해야 한다 —
          보기가 달라졌다고 할 수 있는 일이 줄면 그건 '보기'가 아니라 '반쪽짜리 화면'이다. */
       bindRowActions(_host);
+      bindPostBadges(_host);
 
       var grab = _host.querySelector('#calGrab');
       grab.onclick = function () { if (!_swipedJustNow()) _setExpanded(!_expanded); };
@@ -322,6 +344,27 @@
       r.onclick = function () {
         if (_swipedJustNow()) return;
         if (UI.openTripById) UI.openTripById(r.dataset.id);
+      };
+    });
+  }
+
+  /* ✍️ '이미 쓴 글' 배지 — 글이 하나면 바로 그 글을 열고, 여러 개면 장소 시트에서 고른다.
+     행 클릭(장소 열기)으로 이어지지 않도록 막는다 (기록 탭 목록과 같은 동작, 사용자 요청 2026-09-02). */
+  function bindPostBadges(root) {
+    root.querySelectorAll('.postBadge[data-pid]').forEach(function (b) {
+      b.onclick = function (e) {
+        e.stopPropagation();
+        if (_swipedJustNow()) return;
+        var pid = b.getAttribute('data-pid');
+        var posts = _postsByPlace[pid] || [];
+        if (!posts.length) return;
+        if (posts.length === 1) {
+          Store.placeGet(pid).then(function (p) { if (p) UI.openWriter(p, posts[0]); });
+        } else if (UI.openPlaceSheet) {
+          UI.openPlaceSheet(pid);
+        } else {
+          Place.open(pid).then(function () { UI.switchTab('now'); });
+        }
       };
     });
   }
@@ -604,10 +647,13 @@
     var htmlPlaces = s.places.length
       ? '<div class="lbl">다녀온 곳</div>' + s.places.map(function (p) {
           var snap = p.profileSnap || {};
+          var postN = p._postCount || 0;
           return '<div class="row calPlace" data-id="' + p.id + '">' +
             '<div style="font-size:20px;width:28px;text-align:center;">' + esc(snap.icon || '📍') + '</div>' +
-            '<div><div class="ti">' + esc(p.name || '(이름 없음)') + '</div>' +
+            '<div style="min-width:0;"><div class="ti">' + esc(p.name || '(이름 없음)') + '</div>' +
             '<div class="sb">사진 ' + (p.photos || []).length + '장</div></div>' +
+            (postN ? '<button type="button" class="postBadge" data-pid="' + p.id +
+              '" title="눌러서 쓴 글 열기">✍️' + (postN > 1 ? ' ' + postN : '') + '</button>' : '') +
             '<div class="rt">›</div></div>';
         }).join('')
       : '';
@@ -627,6 +673,7 @@
     box.querySelector('#dayAdd').onclick = function () { openPlan(Plans.create(date)); };
     /* 목록 보기와 같은 핸들러를 쓴다 — 두 벌로 나뉘면 한쪽만 고치는 일이 반드시 생긴다 */
     bindRowActions(box);
+    bindPostBadges(box);
   }
 
   /* ── 일정 편집 ──
