@@ -246,11 +246,31 @@
         '<div class="mini" style="margin-top:8px;text-align:center;">' +
           (CFG.hasProxy() ? 'AI 가 사진과 메모를 보고 씁니다' : '⚠️ AI 프록시 미설정 — 지금은 뼈대 초안만 만듭니다') +
         '</div>' +
+        '<div id="pnPostList"></div>' +
       '</div>';
 
     /* 사진 썸네일 (비동기) */
     el.querySelectorAll('img[data-ph]').forEach(function (im) {
       Photos.url(im.getAttribute('data-ph')).then(function (u) { if (u) im.src = u; });
+    });
+
+    /* 이미 쓴 글 (비동기) — 채널별로 칩을 보여주고 누르면 그 글을 바로 연다 (사용자 요청 2026-09-01) */
+    Store.postsOf(p.id).then(function (posts) {
+      var box = el.querySelector('#pnPostList');
+      if (!box || !posts.length) return;
+      box.innerHTML =
+        '<div class="lbl" style="margin-top:10px;">이미 쓴 글 <span class="mini">(눌러서 열기)</span></div>' +
+        '<div class="tagbar">' + posts.map(function (o) {
+          var ch = ClaudeAI.channel(o.ch);
+          return '<button type="button" class="tag postOpen" data-id="' + o.id + '">' +
+            ch.icon + ' ' + esc(ch.label) + '</button>';
+        }).join('') + '</div>';
+      box.querySelectorAll('.postOpen').forEach(function (b) {
+        b.onclick = function () {
+          var o = posts.filter(function (x) { return x.id === b.getAttribute('data-id'); })[0];
+          if (o) UI.openWriter(p, o);
+        };
+      });
     });
 
     /* 필드 저장 — blur 에 한 번씩 */

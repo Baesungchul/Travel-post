@@ -19,7 +19,14 @@
        다른 보기로 넘어갈 때 반드시 풀어야 한다 —
        안 풀면 목록·지도 화면이 스크롤되지 않는 '먹통'으로 보인다. */
     if (_view !== 'cal' && window.Cal && Cal.unlock) Cal.unlock();
-    Store.placeAll().then(function (list) {
+    Promise.all([Store.placeAll(), Store.postAll()]).then(function (r) {
+      var list = r[0];
+      /* 장소별로 쓴 글을 묶어 둔다 — 목록에 '이미 쓴 글' 표시를 하고 눌러서 바로 열기 위해서다
+         (사용자 요청 2026-09-01). postAll() 이 최신순 정렬이라 postsByPlace[id][0] 이 가장 최근 글이다. */
+      var postsByPlace = {};
+      (r[1] || []).forEach(function (o) {
+        (postsByPlace[o.placeId] = postsByPlace[o.placeId] || []).push(o);
+      });
       var pfs = Profiles.list();
       var shown = _filter ? list.filter(function (p) { return p.profileId === _filter; }) : list;
 
@@ -62,6 +69,7 @@
         el.innerHTML = head + '<div class="card">' + shown.map(function (p) {
           var snap = p.profileSnap || {};
           var first = (p.photos || [])[0];
+          var posts = postsByPlace[p.id] || [];
           return '<div class="row plRow" data-id="' + p.id + '">' +
             '<div class="thumb">' + (first ? '<img data-ph="' + first.id + '" alt="">' : '') + '</div>' +
             '<div style="min-width:0;">' +
@@ -70,6 +78,9 @@
                 ' · 사진 ' + (p.photos || []).length + '장' +
                 (p.area ? ' · ' + esc(p.area) : '') + '</div>' +
             '</div>' +
+            (posts.length ?
+              '<button type="button" class="postBadge" data-id="' + p.id + '" title="눌러서 쓴 글 열기">✍️' +
+                (posts.length > 1 ? ' ' + posts.length : '') + '</button>' : '') +
             '<div class="rt">' + esc(String(p.visitedAt || '').slice(0, 10)) + '</div>' +
           '</div>';
         }).join('') + '</div>';
@@ -79,6 +90,20 @@
         });
         el.querySelectorAll('.plRow').forEach(function (row) {
           row.onclick = function () { openPlaceSheet(row.getAttribute('data-id')); };
+        });
+        /* ✍️ 뱃지 — 글이 하나면 바로 그 글을 열고, 여러 개면(채널별) 고를 수 있게 장소 시트를 연다.
+           row 클릭(장소 시트 열기)으로 이어지지 않도록 막는다. */
+        el.querySelectorAll('.postBadge').forEach(function (b) {
+          b.onclick = function (e) {
+            e.stopPropagation();
+            var id = b.getAttribute('data-id');
+            var posts = postsByPlace[id] || [];
+            if (posts.length === 1) {
+              Store.placeGet(id).then(function (p) { if (p) UI.openWriter(p, posts[0]); });
+            } else {
+              openPlaceSheet(id);
+            }
+          };
         });
       }
 
@@ -287,18 +312,27 @@
           '<div class="grid">' + (p.photos || []).slice(0, 12).map(function (x) {
             return '<div class="ph"><img data-ph="' + x.id + '" alt=""><span class="t">' + esc(x.tag) + '</span></div>';
           }).join('') + '</div>' +
-          '<div class="lbl">이 장소로 만든 글 ' + posts.length + '개</div>' +
-          (posts.length ? posts.map(function (o) {
+          '<div class="lbl">이 장소로 만든 글 ' + posts.length + '개' +
+            (posts.length ? ' <span class="mini">(눌러서 열기)</span>' : '') + '</div>' +
+          (posts.length ? '<div class="box">' + posts.map(function (o) {
             var ch = ClaudeAI.channel(o.ch);
-            return '<div class="mini">' + ch.icon + ' ' + esc(ch.label) + ' · ' +
-              new Date(o.createdAt).toLocaleDateString('ko-KR') + (o.published ? ' · 발행됨' : '') + '</div>';
-          }).join('') : '<div class="mini">아직 없어요</div>'),
+            return '<div class="row postRow" data-id="' + o.id + '"><div style="min-width:0;">' +
+              '<div class="ti">' + ch.icon + ' ' + esc(ch.label) + '</div>' +
+              '<div class="sb">' + new Date(o.createdAt).toLocaleDateString('ko-KR') +
+                (o.published ? ' · 발행됨' : '') + '</div></div><div class="rt">›</div></div>';
+          }).join('') + '</div>' : '<div class="mini">아직 없어요</div>'),
         foot: '<button class="btn danger sm" id="plDel">삭제</button>' +
               '<button class="btn ghost sm" id="plTrip">🧳 여행에 담기</button>' +
               '<button class="btn primary" id="plOpen">이어서 작업</button>'
       });
       ov.querySelectorAll('img[data-ph]').forEach(function (im) {
         Photos.url(im.getAttribute('data-ph')).then(function (u) { if (u) im.src = u; });
+      });
+      ov.querySelectorAll('.postRow').forEach(function (row) {
+        row.onclick = function () {
+          var o = posts.filter(function (x) { return x.id === row.getAttribute('data-id'); })[0];
+          if (o) { ov.close(); UI.openWriter(p, o); }
+        };
       });
       ov.querySelector('#plTrip').onclick = function () { ov.close(); pickTrip(id); };
       ov.querySelector('#plOpen').onclick = function () {
