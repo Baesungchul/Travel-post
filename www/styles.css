@@ -28,10 +28,13 @@ html[data-mode="dark"]{
 html,body{ height:100%; font-family:'Noto Sans KR',sans-serif; background:var(--bg); color:var(--tx);
            font-size:var(--fs-base); overscroll-behavior-y:contain; }
 /* ★ 2026-09-02: '이미 쓴 글' 목록 등 맨 아래 내용이 탭바에 가려 안 보이던 문제.
-      탭바(.tabbar)는 60px + env(safe-area-inset-bottom) 만큼 실제로 화면을 차지하는데
-      본문 여백은 고정 64px 뿐이라, 아래쪽 제스처 내비게이션 영역이 큰 기기(폴드7 펼침 화면 등)에서는
-      그 차이만큼 마지막 내용이 탭바 밑에 숨었다. 본문 여백도 같은 안전영역을 더해준다. */
-body{ padding-bottom:calc(64px + env(safe-area-inset-bottom)); }
+      1차 시도(64px + env(safe-area-inset-bottom))로도 안 고쳐졌다 — 원인을 다시 보니,
+      전역 * { box-sizing:border-box } 때문에 .tabbar 는 padding-bottom:env(...) 를 더해도
+      height:60px 를 넘지 않는다(패딩이 안쪽 내용을 밀어 올릴 뿐, 박스 자체는 안 커진다).
+      즉 탭바는 늘 딱 60px(+테두리 1px)이고, 안전영역이 0인 기기(폴드7 실측 포함)에서는
+      env() 를 더해도 여백이 그대로였다 — 애초에 64px 는 61px짜리 탭바에 여유가 3px뿐이라
+      버튼 줄 하나만 걸쳐도 가려지기 충분히 빠듯했다. 안전영역에 기대지 않고 여백 자체를 넉넉히 늘린다. */
+body{ padding-bottom:calc(96px + env(safe-area-inset-bottom)); }
 body.modal-open{ overflow:hidden; position:fixed; width:100%; }
 img{ max-width:100%; }
 button{ font-family:inherit; }
