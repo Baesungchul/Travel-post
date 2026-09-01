@@ -20,6 +20,29 @@
   var Cal = window.Cal = {};
   var _y, _m, _sel = null, _host = null;
 
+  /* ── 펼치기(확대) 상태 ────────────────────────────────────
+     현장매니저와 '같은 손짓'을 쓴다:
+       · 좌우로 끌기      → 이전/다음 달 (손가락을 따라 움직이고, 놓으면 넘어간다)
+       · 아래로 당기기    → 달력이 화면 가득 커진다
+       · 위로 밀기        → 다시 접힌다
+     펼친 동안에는 보기를 둘 중에 고를 수 있다:
+       · 격자(grid) — 7열 달력을 화면 가득. 어느 날이 비었는지 한눈에 보인다
+       · 목록(list) — 그 달의 내용이 있는 날만 세로로. 무엇이 있었는지 읽기 좋다
+
+     ⚠️ 현장매니저 코드를 그대로 옮기지 않았다. 그쪽은 #customerBody 라는 자체 스크롤
+        컨테이너와 CSS zoom(글자 크기) 위에서 좌표를 맞추느라 보정 로직이 크다.
+        찍고쓰다는 페이지(body) 자체가 스크롤되고 글자 배율도 없어서,
+        펼친 동안 body 스크롤을 잠그는 방식이 훨씬 짧고 안 깨진다.
+        → 손짓은 같고, 속은 이 앱에 맞게 새로 짰다. */
+  var _expanded  = false;
+  var _expView   = 'grid';          // 'grid' | 'list'
+  var _lastNatH  = 0;               // 접힌 격자의 '원래 높이' (접을 때 목표값)
+  var _EXPVIEW_KEY = 'tp_cal_expview';
+  try {
+    var _sv = localStorage.getItem(_EXPVIEW_KEY);
+    if (_sv === 'grid' || _sv === 'list') _expView = _sv;
+  } catch (e) {}
+
   function pad(n) { return String(n).padStart(2, '0'); }
   function ds(y, m, d) { return y + '-' + pad(m + 1) + '-' + pad(d); }
   function todayStr() { return isoLocal().slice(0, 10); }
@@ -88,6 +111,105 @@
     });
   }
 
+  /* ── 칸 하나 그리기 ──
+     접힌 달력은 점 세 개로, 펼친 격자는 아이콘+개수로 보여준다.
+     칸 너비가 화면의 1/7(≈50px)뿐이라 펼쳐도 글자는 거의 못 넣는다 — 그래서 아이콘이다. */
+  function cellHTML(key, d, dow, s, today, expandedGrid) {
+    var hol = holidayOf(key);
+    var cls = 'cal-c';
+    if (key === today) cls += ' today';
+    if (key === _sel) cls += ' sel';
+    if (dow === 0 || hol) cls += ' sun'; else if (dow === 6) cls += ' sat';
+
+    var inner;
+    if (expandedGrid) {
+      var ic = '';
+      if (s.trips.length)  ic += '<b class="ci trip">🧳</b>';
+      if (s.plans.length)  ic += '<b class="ci plan">📌' + (s.plans.length > 1 ? s.plans.length : '') + '</b>';
+      if (s.places.length) ic += '<b class="ci place">📷' + (s.places.length > 1 ? s.places.length : '') + '</b>';
+      inner = '<span class="n">' + d + '</span>' +
+              (hol ? '<span class="hol">' + esc(hol.slice(0, 4)) + '</span>' : '') +
+              '<span class="cal-icos">' + ic + '</span>';
+    } else {
+      var marks = '';
+      if (s.trips.length) marks += '<i class="m-trip"></i>';
+      if (s.plans.length) marks += '<i class="m-plan"></i>';
+      if (s.places.length) marks += '<i class="m-place"></i>';
+      inner = '<span class="n">' + d + '</span>' +
+              (hol ? '<span class="hol">' + esc(hol.slice(0, 4)) + '</span>' : '') +
+              '<span class="marks">' + marks + '</span>';
+    }
+    return '<div class="' + cls + '" data-d="' + key + '">' + inner + '</div>';
+  }
+
+  /* ── 펼침·목록 보기 ──
+     그 달에서 '내용이 있는 날'만 세로로 늘어놓는다.
+     빈 날까지 넣으면 스크롤만 길어지고 정작 볼 게 안 보인다. */
+  function agendaHTML(byDate) {
+    var lastDate = new Date(_y, _m + 1, 0).getDate();
+    var today = todayStr();
+    var out = '', any = false;
+    /* ⚠️ 여행은 기간이라 걸치는 날마다 byDate 에 들어 있다(달력에서는 그게 맞다).
+       목록에서까지 매일 되풀이하면 같은 줄이 8번 나와 정작 볼 것을 덮는다.
+       → 그 달에 처음 나오는 날에만, 기간을 붙여 한 번 보여준다. */
+    var shownTrip = {};
+
+    for (var d = 1; d <= lastDate; d++) {
+      var key = ds(_y, _m, d);
+      var s = byDate[key];
+      if (!s) continue;
+
+      var newTrips = s.trips.filter(function (t) {
+        if (shownTrip[t.id]) return false;
+        shownTrip[t.id] = true;
+        return true;
+      });
+      /* 이어지는 여행뿐이고 일정·기록이 없는 날은 통째로 건너뛴다 */
+      if (!newTrips.length && !s.plans.length && !s.places.length) continue;
+      any = true;
+
+      var dt = new Date(key + 'T00:00');
+      var wd = ['일','월','화','수','목','금','토'][dt.getDay()];
+      var hol = holidayOf(key);
+      var hcls = 'ag-date' + (key === today ? ' today' : '') +
+                 ((dt.getDay() === 0 || hol) ? ' sun' : (dt.getDay() === 6 ? ' sat' : ''));
+
+      var rows = '';
+      newTrips.forEach(function (t) {
+        var per = esc(String(t.startAt || '').slice(5).replace('-', '.'));
+        if (t.endAt && t.endAt !== t.startAt) per += '~' + esc(String(t.endAt).slice(5).replace('-', '.'));
+        rows += '<div class="ag-row calTrip" data-id="' + t.id + '"><span class="ag-ic">🧳</span>' +
+                '<span class="ag-tx">' + esc(t.name) + '</span>' +
+                '<span class="ag-rt">' + per + '</span></div>';
+      });
+      s.plans.forEach(function (pl) {
+        var pf = pl.catId ? Profiles.get(pl.catId) : null;
+        rows += '<div class="ag-row calPlan" data-id="' + pl.id + '"><span class="ag-ic">' +
+                esc(pf ? (pf.icon || '📌') : '📌') + '</span>' +
+                '<span class="ag-tx' + (pl.done ? ' done' : '') + '">' + esc(pl.title || '(제목 없음)') + '</span>' +
+                '<span class="ag-rt">' + esc(pl.time || '일정') + '</span></div>';
+      });
+      s.places.forEach(function (p) {
+        var snap = p.profileSnap || {};
+        rows += '<div class="ag-row calPlace" data-id="' + p.id + '"><span class="ag-ic">' +
+                esc(snap.icon || '📷') + '</span>' +
+                '<span class="ag-tx">' + esc(p.name || '(이름 없음)') + '</span>' +
+                '<span class="ag-rt">사진 ' + (p.photos || []).length + '</span></div>';
+      });
+
+      out += '<div class="ag-day" data-d="' + key + '">' +
+               '<div class="' + hcls + '">' + (_m + 1) + '.' + d + ' <span>(' + wd + ')</span>' +
+                 (hol ? '<em>' + esc(hol) + '</em>' : '') + '</div>' + rows +
+             '</div>';
+    }
+
+    if (!any) {
+      out = '<div class="ag-empty">이 달에는 아직 아무것도 없어요.' +
+            '<span class="mini">달력으로 돌아가 날짜를 누르면 일정을 넣을 수 있어요.</span></div>';
+    }
+    return out;
+  }
+
   /* ── 달력 그리기 ── */
   Cal.render = function (host) {
     _host = host || _host;
@@ -99,31 +221,22 @@
       var first = new Date(_y, _m, 1).getDay();
       var lastDate = new Date(_y, _m + 1, 0).getDate();
       var today = todayStr();
+      var expGrid = _expanded && _expView === 'grid';
+      var expList = _expanded && _expView === 'list';
       var cells = '';
 
       for (var i = 0; i < first; i++) cells += '<div class="cal-c out"></div>';
       for (var d = 1; d <= lastDate; d++) {
         var key = ds(_y, _m, d);
-        var s = byDate[key] || { places: [], plans: [], trips: [] };
-        var dow = (first + d - 1) % 7;
-        var hol = holidayOf(key);
-        var cls = 'cal-c';
-        if (key === today) cls += ' today';
-        if (key === _sel) cls += ' sel';
-        if (dow === 0 || hol) cls += ' sun'; else if (dow === 6) cls += ' sat';
-
-        var marks = '';
-        if (s.trips.length) marks += '<i class="m-trip"></i>';
-        if (s.plans.length) marks += '<i class="m-plan"></i>';
-        if (s.places.length) marks += '<i class="m-place"></i>';
-
-        cells += '<div class="' + cls + '" data-d="' + key + '">' +
-          '<span class="n">' + d + '</span>' +
-          (hol ? '<span class="hol">' + esc(hol.slice(0, 4)) + '</span>' : '') +
-          '<span class="marks">' + marks + '</span></div>';
+        cells += cellHTML(key, d, (first + d - 1) % 7,
+                          byDate[key] || { places: [], plans: [], trips: [] }, today, expGrid);
       }
       var remain = (first + lastDate) % 7;
       if (remain) for (var k = remain; k < 7; k++) cells += '<div class="cal-c out"></div>';
+
+      /* ⚠️ 보기 전환 버튼의 아이콘은 '지금 보기'가 아니라 '누르면 갈 보기'를 뜻한다.
+         버튼은 상태 표시가 아니라 행동이기 때문이다(현장매니저에서 같은 결론). */
+      var toList = (_expView === 'grid');
 
       _host.innerHTML =
         '<div class="cal-hd">' +
@@ -131,11 +244,22 @@
           '<button class="btn sm ghost" id="calTitle">' + _y + '년 ' + (_m + 1) + '월</button>' +
           '<button class="btn sm ghost" id="calNext">›</button>' +
           '<button class="btn sm ghost sp" id="calToday">오늘</button>' +
+          '<button class="btn sm ghost cal-vt" id="calViewToggle" type="button" ' +
+            'title="' + (toList ? '목록으로 보기' : '달력 크게 보기') + '" ' +
+            'aria-label="' + (toList ? '목록으로 보기' : '달력 크게 보기') + '">' +
+            (toList ? '☰' : '▦') + '</button>' +
         '</div>' +
-        '<div class="cal-dow">' + ['일','월','화','수','목','금','토'].map(function (w, i) {
+        '<div class="cal-dow" id="calDow">' + ['일','월','화','수','목','금','토'].map(function (w, i) {
           return '<div class="' + (i === 0 ? 'sun' : i === 6 ? 'sat' : '') + '">' + w + '</div>';
         }).join('') + '</div>' +
-        '<div class="cal-grid">' + cells + '</div>' +
+        '<div class="cal-grid' + (expList ? ' cal-agenda' : '') + '" id="calGrid">' +
+          (expList ? agendaHTML(byDate) : cells) + '</div>' +
+        /* 손잡이 — 당기라고 그려 놓고 정작 못 당기면 안 되므로, 격자와 같은 핸들러를 붙인다.
+           누르기만 해도 펼쳐지고 접힌다(제스처를 모르는 사람을 위한 길). */
+        '<div class="cal-grab" id="calGrab" role="button" tabindex="0">' +
+          '<span class="cal-grab-bar"></span>' +
+          '<span class="cal-grab-tx">' + (_expanded ? '⬆️ 위로 밀어 접기' : '⬇️ 아래로 당겨 크게 보기') + '</span>' +
+        '</div>' +
         '<div class="cal-legend"><span><i class="m-trip"></i> 여행</span>' +
           '<span><i class="m-plan"></i> 일정</span><span><i class="m-place"></i> 기록</span></div>' +
         '<div id="calDay"></div>';
@@ -146,13 +270,275 @@
         var t2 = new Date(); _y = t2.getFullYear(); _m = t2.getMonth(); _sel = todayStr(); Cal.render();
       };
       _host.querySelector('#calTitle').onclick = openMonthPicker;
+      _host.querySelector('#calViewToggle').onclick = function (e) {
+        e.stopPropagation();
+        _switchExpView();
+      };
+
+      /* 날짜 누르기 — 접힌 상태에서는 그날 내용을 아래에 펴고,
+         펼친 상태에서는 접으면서 그날로 간다(펼친 화면에는 상세가 없으니까). */
       _host.querySelectorAll('.cal-c[data-d]').forEach(function (c) {
-        c.onclick = function () { _sel = c.getAttribute('data-d'); Cal.render(); };
+        c.onclick = function () {
+          if (_swipedJustNow()) return;
+          _sel = c.getAttribute('data-d');
+          if (_expanded) _setExpanded(false); else Cal.render();
+        };
       });
+      _host.querySelectorAll('.ag-day').forEach(function (g) {
+        var hd = g.querySelector('.ag-date');
+        if (hd) hd.onclick = function () {
+          if (_swipedJustNow()) return;
+          _sel = g.getAttribute('data-d');
+          _setExpanded(false);
+        };
+      });
+
+      /* 목록 보기의 행들도 접힌 상세와 똑같이 동작해야 한다 —
+         보기가 달라졌다고 할 수 있는 일이 줄면 그건 '보기'가 아니라 '반쪽짜리 화면'이다. */
+      bindRowActions(_host);
+
+      var grab = _host.querySelector('#calGrab');
+      grab.onclick = function () { if (!_swipedJustNow()) _setExpanded(!_expanded); };
+
+      bindGestures(_host);
+      _applyExpandedUI(false);
 
       renderDay(_host.querySelector('#calDay'), _sel, byDate[_sel] || { places: [], plans: [], trips: [] });
     });
   };
+
+  /* ── 여행·일정·기록 행 클릭 (상세 패널과 목록 보기가 함께 쓴다) ── */
+  function bindRowActions(root) {
+    root.querySelectorAll('.calPlan').forEach(function (r) {
+      r.onclick = function () { if (!_swipedJustNow()) Plans.get(r.dataset.id).then(openPlan); };
+    });
+    root.querySelectorAll('.calPlace').forEach(function (r) {
+      r.onclick = function () {
+        if (_swipedJustNow()) return;
+        Place.open(r.dataset.id).then(function () { UI.switchTab('now'); });
+      };
+    });
+    root.querySelectorAll('.calTrip').forEach(function (r) {
+      r.onclick = function () {
+        if (_swipedJustNow()) return;
+        if (UI.openTripById) UI.openTripById(r.dataset.id);
+      };
+    });
+  }
+
+  /* ═══ 펼치기 / 접기 ════════════════════════════════════ */
+
+  /* 드래그 직후의 오작동 클릭 막기 — 손을 떼는 순간 그 아래 요소의 click 이 뒤따라 온다 */
+  var _swipeTs = 0;
+  function _swipedJustNow() { return (Date.now() - _swipeTs) < 400; }
+
+  /* 펼쳤을 때 격자가 차지할 높이: 격자 윗변부터 '손잡이 자리와 탭바'를 뺀 만큼.
+     ☠️ 손잡이 높이를 빼지 않으면 손잡이가 탭바 밑으로 밀려 들어가 **접을 수가 없다**.
+        (헤드리스 테스트에서 실제로 잡힌 버그다 — 탭바가 클릭을 가로챘다)
+        접는 길은 제스처 말고도 반드시 하나 더 남아 있어야 한다. */
+  function _expandedHeight(grid) {
+    var top  = grid.getBoundingClientRect().top;
+    var grab = _host && _host.querySelector('#calGrab');
+    var gh   = (grab && grab.offsetHeight) || 34;
+    var tab  = 60 + 8;                                  // .tabbar 높이 + 여유
+    return Math.max(200, Math.round(window.innerHeight - top - gh - tab));
+  }
+  /* 접었을 때의 '원래 높이'. 펼친 동안에는 잴 수 없으므로(안이 목록일 수도 있다)
+     접혀 있을 때 재 둔 값을 쓴다. */
+  function _naturalHeight(grid) {
+    if (_expanded) return _lastNatH || 240;
+    var h = grid.style.height, ar = grid.style.gridAutoRows, tr = grid.style.transition;
+    grid.style.transition = 'none'; grid.style.height = ''; grid.style.gridAutoRows = '';
+    var n = grid.offsetHeight;
+    grid.style.height = h; grid.style.gridAutoRows = ar; grid.style.transition = tr;
+    _lastNatH = n;
+    return n;
+  }
+
+  /* 화면에 상태를 입힌다. 렌더 직후에도 불러야 펼친 채로 다시 그려도 유지된다. */
+  function _applyExpandedUI(animate) {
+    if (!_host) return;
+    var grid = _host.querySelector('#calGrid');
+    if (!grid) return;
+
+    _host.classList.toggle('cal-expanded', _expanded);
+    _host.classList.toggle('cal-listview', _expanded && _expView === 'list');
+    _host.classList.remove('cal-sizing');   // 드래그가 끝났으므로 임시 클래스는 걷는다
+    /* 펼친 동안에는 페이지가 움직이면 안 된다 — 격자를 화면에 맞춰 놨는데 뒤에서
+       body 가 스크롤되면 아래쪽이 탭바에 잘린다. 목록 보기는 격자 안에서 따로 스크롤한다. */
+    document.body.classList.toggle('cal-lock', _expanded);
+
+    if (_expanded) {
+      grid.style.transition   = animate ? 'height .2s ease-out' : 'none';
+      grid.style.gridAutoRows = '1fr';          // 5줄이든 6줄이든 남은 높이를 고르게 나눈다
+      grid.style.height       = _expandedHeight(grid) + 'px';
+      grid.style.opacity      = '1';
+    } else {
+      _naturalHeight(grid);                     // 접힌 높이를 다음 드래그를 위해 재 둔다
+      grid.style.transition   = animate ? 'height .2s ease-out' : 'none';
+      grid.style.gridAutoRows = '';
+      grid.style.height       = '';
+      grid.style.opacity      = '1';
+    }
+  }
+
+  function _setExpanded(on, animate) {
+    if (_expanded === on) { _applyExpandedUI(false); return; }
+    _expanded = on;
+    if (on) window.scrollTo(0, 0);              // 격자를 화면 위쪽에 붙인 뒤 높이를 잰다
+    Cal.render();                               // 칸 내용이 보기마다 다르므로 다시 그린다
+    /* render 는 비동기(collect)라 여기서 UI 를 또 만지면 옛 DOM 을 건드린다.
+       실제 적용은 render 끝의 _applyExpandedUI 가 한다. animate 는 그 경로에선 생략. */
+  }
+
+  function _switchExpView() {
+    _expView = (_expView === 'grid') ? 'list' : 'grid';
+    try { localStorage.setItem(_EXPVIEW_KEY, _expView); } catch (e) {}
+    /* 접힌 상태에서 눌렀다면 '그 보기로 펼쳐 달라'는 뜻으로 받는다 —
+       버튼을 눌렀는데 아무 일도 안 일어나는 것만큼 나쁜 건 없다. */
+    if (!_expanded) { _setExpanded(true); return; }
+    Cal.render();
+  }
+
+  /* ── 손짓 ──────────────────────────────────────────────
+     한 핸들러에서 방향을 판별한다. 가로/세로를 따로 붙이면 서로 잡아먹는다
+     (현장매니저에서 실제로 겪은 문제라 그 구조만은 그대로 가져왔다). */
+  function bindGestures(root) {
+    var grid = root.querySelector('#calGrid');
+    var grab = root.querySelector('#calGrab');
+    if (!grid) return;
+
+    var sx = 0, sy = 0, st = 0;
+    var mode = 0;          // 0대기 1판별중 2가로(월이동) 3양보(스크롤) 4아래로(펼치기) 5위로(접기)
+    var vBase = 0, vLo = 0, vHi = 0;
+    var startedAtBottom = false;
+
+    function W() { return grid.offsetWidth || 320; }
+    function snapBack() {
+      grid.style.transition = 'transform .18s ease-out, opacity .18s ease-out';
+      grid.style.transform  = 'none';
+      grid.style.opacity    = '1';
+    }
+    /* 목록 보기는 자기 안에서 스크롤한다 → '바닥에 닿아 있을 때'만 접기로 본다.
+       그러지 않으면 마지막 줄을 보려고 위로 미는 동작마다 접혀 버린다.
+       격자 보기는 자체 스크롤이 없으니 언제든 접기로 본다. */
+    function atBottom() {
+      if (!_expanded) return false;
+      if (!grid.classList.contains('cal-agenda')) return true;
+      return (grid.scrollTop + grid.clientHeight) >= (grid.scrollHeight - 4);
+    }
+
+    function onStart(e) {
+      if (!e.touches || e.touches.length !== 1) { mode = 3; return; }
+      sx = e.touches[0].clientX; sy = e.touches[0].clientY; st = Date.now();
+      startedAtBottom = atBottom();
+      mode = 1;
+    }
+    function onMove(e) {
+      if (mode === 0 || mode === 3) return;
+      var t = e.touches && e.touches[0];
+      if (!t) return;
+      var dx = t.clientX - sx, dy = t.clientY - sy;
+
+      if (mode === 1) {
+        if (Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy) * 1.3) {
+          mode = 2;
+        } else if (Math.abs(dy) > 12) {
+          if (dy < 0 && _expanded && startedAtBottom) {
+            mode = 5;
+            vBase = grid.offsetHeight;
+            vLo   = Math.min(vBase, _naturalHeight(grid));
+            root.classList.add('cal-sizing');   // 세로만 늘어나게 (styles.css 주석 참고)
+            if (e.cancelable) e.preventDefault();
+            return;
+          }
+          /* 아래로 당겨 펼치기는 '페이지가 맨 위'일 때만 — 아니면 평소 스크롤을 뺏는다 */
+          var atTop = (window.scrollY || document.documentElement.scrollTop || 0) <= 0;
+          if (!(dy > 0 && !_expanded && atTop)) { mode = 3; return; }
+          vBase = grid.offsetHeight;
+          vLo   = vBase;
+          vHi   = _expandedHeight(grid);
+          if (vHi - vLo < 40) { mode = 3; return; }   // 늘릴 여지가 없으면 그냥 둔다
+          root.classList.add('cal-sizing');           // 세로만 늘어나게 (styles.css 주석 참고)
+          mode = 4;
+        } else return;
+      }
+
+      if (mode === 2) {
+        if (e.cancelable) e.preventDefault();
+        grid.style.transition = 'none';
+        grid.style.transform  = 'translateX(' + dx + 'px)';
+        grid.style.opacity    = String(Math.max(0.35, 1 - Math.abs(dx) / W()));
+      } else if (mode === 4) {
+        if (e.cancelable) e.preventDefault();
+        var h = Math.min(vHi, Math.max(vLo, vBase + dy));
+        grid.style.transition   = 'none';
+        grid.style.gridAutoRows = '1fr';
+        grid.style.height       = h + 'px';
+      } else if (mode === 5) {
+        if (e.cancelable) e.preventDefault();
+        /* 펼치기의 정확한 반대: 손가락만큼 높이를 줄이면서 같이 흐려진다.
+           접힘 높이에 닿으면 이미 접힌 모습이라, 손을 떼면 갈아 끼우기만 하면 된다. */
+        var h5 = Math.max(vLo, vBase + dy);
+        var pg = (vBase - vLo) > 0 ? (vBase - h5) / (vBase - vLo) : 0;
+        grid.style.transition = 'none';
+        grid.style.height     = h5 + 'px';
+        grid.style.opacity    = String(Math.max(0.15, 1 - pg * 0.85));
+      }
+    }
+    function onEnd(e) {
+      var was = mode; mode = 0;
+      if (was !== 2 && was !== 4 && was !== 5) return;
+      _swipeTs = Date.now();
+      var t = e.changedTouches && e.changedTouches[0];
+
+      if (was === 2) {
+        if (!t) { snapBack(); return; }
+        var dx = t.clientX - sx;
+        var fast = (Date.now() - st) < 300 && Math.abs(dx) > 40;
+        if (Math.abs(dx) > W() * 0.28 || fast) { grid.style.transform = 'none'; grid.style.opacity = '1'; move(dx < 0 ? 1 : -1); }
+        else snapBack();
+        return;
+      }
+
+      var dy = t ? (t.clientY - sy) : 0;
+      if (was === 5) {
+        var flick5 = (Date.now() - st) < 300 && dy < -40;
+        if (dy < -55 || flick5) { _setExpanded(false); return; }
+        /* 문턱을 못 넘었으면 줄어든 높이와 흐려짐을 함께 되돌린다.
+           (아직 펼친 상태이므로 .cal-expanded 가 비율을 계속 풀어 준다 — 여기서 걷어도 안전) */
+        root.classList.remove('cal-sizing');
+        grid.style.transition = 'height .18s ease-out, opacity .18s ease-out';
+        grid.style.opacity    = '1';
+        grid.style.height     = (vBase || _expandedHeight(grid)) + 'px';
+        return;
+      }
+      // mode 4 — 놓은 위치가 어느 쪽에 가까운지로 결정 (짧고 빠른 튕김도 인정)
+      var h2   = Math.min(vHi, Math.max(vLo, vBase + dy));
+      var prog = (vHi - vLo) ? (h2 - vLo) / (vHi - vLo) : 0;
+      var flick = (Date.now() - st) < 300 && Math.abs(dy) > 40;
+      var on = flick ? (dy > 0) : (prog > 0.4);
+      if (on) _setExpanded(true); else _applyExpandedUI(true);
+    }
+    function onCancel() {
+      if (mode === 2) snapBack();
+      if (mode === 4 || mode === 5) _applyExpandedUI(true);
+      root.classList.remove('cal-sizing');
+      mode = 0;
+    }
+
+    [grid, grab].forEach(function (el) {
+      if (!el) return;
+      el.addEventListener('touchstart',  onStart,  { passive: true });
+      el.addEventListener('touchmove',   onMove,   { passive: false });
+      el.addEventListener('touchend',    onEnd,    { passive: true });
+      el.addEventListener('touchcancel', onCancel, { passive: true });
+    });
+  }
+
+  /* 다른 탭으로 갔다가 돌아왔을 때 body 잠금이 남지 않게 한다 */
+  Cal.collapse = function () { if (_expanded) _setExpanded(false); };
+  Cal.unlock   = function () { document.body.classList.remove('cal-lock'); };
 
   function move(dir) {
     _m += dir;
@@ -239,15 +625,8 @@
       '</div>';
 
     box.querySelector('#dayAdd').onclick = function () { openPlan(Plans.create(date)); };
-    box.querySelectorAll('.calPlan').forEach(function (r) {
-      r.onclick = function () { Plans.get(r.dataset.id).then(openPlan); };
-    });
-    box.querySelectorAll('.calPlace').forEach(function (r) {
-      r.onclick = function () { Place.open(r.dataset.id).then(function () { UI.switchTab('now'); }); };
-    });
-    box.querySelectorAll('.calTrip').forEach(function (r) {
-      r.onclick = function () { if (UI.openTripById) UI.openTripById(r.dataset.id); };
-    });
+    /* 목록 보기와 같은 핸들러를 쓴다 — 두 벌로 나뉘면 한쪽만 고치는 일이 반드시 생긴다 */
+    bindRowActions(box);
   }
 
   /* ── 일정 편집 ──

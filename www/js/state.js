@@ -183,8 +183,29 @@
       return p;
     },
 
+    /* ── 빈 장소인가 ──
+       ＋ 를 누르면 카테고리·방문시각은 자동으로 채워진다. 그건 '사용자가 넣은 내용'이 아니다.
+       사람이 실제로 넣은 것(이름·주소·메모·사진·별점·위치·여행)이 하나도 없으면 빈 장소다.
+       ⚠️ visitedAt / profileSnap 을 내용으로 치면 모든 장소가 '내용 있음'이 되어 판정이 무의미해진다. */
+    isBlank: function (p) {
+      p = p || _cur;
+      if (!p) return true;
+      return !String(p.name || '').trim() &&
+             !String(p.address || '').trim() &&
+             !String(p.memo || '').trim() &&
+             !(p.photos && p.photos.length) &&
+             !p.rating && !p.geo && !p.tripId;
+    },
+
+    /* ☠️ 2026-08-30 (사용자 지적) — ＋ 를 누르면 곧바로 저장되던 것을 고쳤다.
+         증상: 아무것도 안 적은 채로 다른 장소를 새로 만들면 목록에 '(이름 없음)' 이 남았다.
+         원인: startNewPlace 가 create 직후 save 를 불러 빈 껍데기를 그대로 기록했다.
+         → 빈 장소는 저장소에 쓰지 않는다. 이름 한 글자든 사진 한 장이든 들어오는 순간 저장된다.
+         ⚠️ 이때 반환값을 null 로 준다 — app.js 가 lastPlaceId 를 기억하는데,
+            저장소에 없는 id 를 기억해 두면 다음 실행에서 '장소를 찾을 수 없습니다' 가 뜬다. */
     save: function () {
       if (!_cur) return Promise.resolve(null);
+      if (Place.isBlank(_cur)) return Promise.resolve(null);
       _cur.updatedAt = Date.now();
       return Store.placePut(_cur).then(function () { return _cur; });
     },

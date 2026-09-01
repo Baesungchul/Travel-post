@@ -17,6 +17,9 @@
 
   UI.switchTab = function (name) {
     if (!PANEL[name]) name = 'now';
+    /* 달력을 펼친 채로 탭을 옮기면 body 잠금이 남아 다음 화면이 안 움직인다.
+       탭 전환은 모든 화면이 지나는 길목이라, 여기서 한 번 풀어 주는 게 가장 확실하다. */
+    if (window.Cal && Cal.unlock) Cal.unlock();
     _tab = name;
     Object.keys(PANEL).forEach(function (k) {
       var el = document.getElementById(PANEL[k]);

@@ -260,3 +260,76 @@ textarea.inp{ resize:vertical; min-height:78px; line-height:1.6; }
   .cal-c{ font-size:12px; }
   .cal-c .hol{ display:none; }
 }
+
+/* ── 손잡이 ──
+   "당기라고 그려 놨으면 그걸 당기는 게 사람 마음"이라, 손잡이도 격자와 같은 드래그 대상이다.
+   누르기만 해도 펼쳐지고 접힌다 — 제스처를 모르는 사람이 막히면 안 된다. */
+.cal-grab{ display:flex; flex-direction:column; align-items:center; gap:4px;
+           padding:8px 0 4px; cursor:pointer; user-select:none; -webkit-user-select:none; }
+.cal-grab-bar{ width:38px; height:4px; border-radius:2px; background:var(--bd); }
+.cal-grab:active .cal-grab-bar{ background:var(--ac); }
+.cal-grab-tx{ font-size:11px; color:var(--mu); font-weight:700; }
+
+/* 보기 전환 버튼 — 접혔을 때도 보인다(누르면 그 보기로 펼쳐진다) */
+.cal-vt{ min-width:38px; padding-left:10px; padding-right:10px; font-size:15px; }
+
+/* ── 펼친 상태 ───────────────────────────────────────────
+   격자 높이는 자바스크립트가 화면에 맞춰 넣는다.
+   여기서 vh 를 쓰면 모바일 주소창이 접혔다 펴질 때마다 어긋난다. */
+.cal-expanded .cal-grid{ overflow:hidden; }
+/* ☠️ .cal-sizing 을 빼지 말 것 — '드래그하는 도중'에 쓰는 클래스다.
+      칸에 aspect-ratio(정사각형 유지)가 걸려 있으면, 자바스크립트가 격자 높이를 늘리는 동안
+      칸이 그 비율을 지키려고 **가로까지 같이 늘어나** 격자 밖으로 삐져나온다.
+      (실측: 드래그 중 칸 너비 48.6px → 65.6px, 가로 넘침 발생)
+      그래서 높이를 손대기 시작하는 순간부터 비율을 풀어 준다. */
+.cal-expanded .cal-c,
+.cal-sizing .cal-c{ aspect-ratio:auto; height:auto; min-height:0; justify-content:flex-start; }
+.cal-expanded .cal-legend,
+.cal-expanded #calDay{ display:none; }          /* 펼치면 아래 상세는 자리만 차지한다 */
+.cal-expanded .cal-c .marks{ display:none; }    /* 점 대신 아이콘을 쓴다 */
+
+/* 펼친 격자의 칸 내용 — 칸 폭이 화면의 1/7 뿐이라 글자는 최소로 */
+.cal-icos{ display:flex; flex-direction:column; align-items:center; gap:1px; margin-top:3px;
+           line-height:1.15; }
+.cal-icos .ci{ font-size:9.5px; font-weight:700; white-space:nowrap; }
+.cal-icos .ci.plan{ color:var(--ac2); }
+.cal-icos .ci.place{ color:#E0A32E; }
+
+/* 펼친 목록 보기 — 격자 자리에 세로 목록이 들어간다(자기 안에서 스크롤) */
+.cal-agenda{ display:block !important; overflow-y:auto !important; -webkit-overflow-scrolling:touch;
+             overscroll-behavior:contain; padding:8px 6px; }
+/* 목록 보기에서는 요일 머리(일·월·화…)가 뜻이 없다.
+   ⚠️ :has() 로 잡지 말 것 — 구형 안드로이드 웹뷰에서 통째로 무시된다. 클래스로 건다. */
+.cal-listview #calDow{ display:none; }
+.ag-day{ margin-bottom:10px; }
+.ag-date{ font-size:12.5px; font-weight:800; color:var(--mu); padding:4px 4px 6px;
+          display:flex; align-items:center; gap:6px; cursor:pointer; }
+.ag-date span{ font-weight:700; }
+.ag-date em{ font-style:normal; font-size:10.5px; color:var(--wn); }
+.ag-date.sun, .ag-date.sun span{ color:var(--wn); }
+.ag-date.sat, .ag-date.sat span{ color:#3B7DD8; }
+.ag-date.today{ color:var(--ac); }
+.ag-row{ display:flex; align-items:center; gap:8px; padding:9px 8px; border-radius:10px;
+         background:var(--sf2); margin-bottom:4px; cursor:pointer; }
+.ag-row:active{ opacity:.8; }
+.ag-ic{ width:22px; text-align:center; font-size:15px; flex:none; }
+.ag-tx{ flex:1; min-width:0; font-size:13.5px; font-weight:700;
+        overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+.ag-tx.done{ opacity:.55; text-decoration:line-through; }
+.ag-rt{ font-size:11px; color:var(--mu); font-weight:700; flex:none; }
+.ag-empty{ display:flex; flex-direction:column; align-items:center; justify-content:center;
+           gap:6px; height:100%; min-height:160px; color:var(--mu); font-size:13px; text-align:center; }
+
+/* 펼친 동안 페이지가 뒤에서 움직이면 격자 아래쪽이 탭바에 잘린다 */
+body.cal-lock{ overflow:hidden; }
+
+/* ── 주변 장소 찾기: 지도 보기 ──
+   오버레이 안이라 기록 탭 지도(.mapbox 58vh)보다 낮게 잡는다.
+   높으면 아래 '채우기' 막대가 화면 밖으로 밀린다. */
+.pf-map{ width:100%; height:42vh; min-height:220px; max-height:360px;
+         border-radius:12px; overflow:hidden; background:var(--sf3); }
+.pf-sel{ display:flex; align-items:center; gap:10px; margin-top:8px; padding:10px 12px;
+         background:var(--sf2); border-radius:12px; min-height:44px; }
+.pf-sel-tx{ flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
+.pf-sel-tx b{ font-size:13.5px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+.pf-sel-tx .mini{ overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }

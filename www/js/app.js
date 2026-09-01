@@ -63,6 +63,7 @@ document.addEventListener('DOMContentLoaded', function () {
     return Place.open(id).catch(function () { return null; });
   }).catch(function () { return null; }).then(function () {
     UI.switchTab('now');
+    cleanupBlankPlaces();   // ⚠️ 복구가 끝난 뒤에 — 그래야 '지금 열린 장소'를 정확히 알고 비켜 간다
   });
 
   /* 장소가 바뀔 때마다 마지막 id 기억 */
@@ -73,6 +74,33 @@ document.addEventListener('DOMContentLoaded', function () {
       return p;
     });
   };
+
+  /* 예전 버전이 남긴 빈 장소 치우기 (2026-08-30)
+     ＋ 를 누르는 즉시 저장하던 시절에 생긴 '(이름 없음)' 껍데기들이다.
+     지금은 state.js 가 애초에 저장하지 않지만, 이미 기기에 들어 있는 것은 여기서 치운다.
+     ⚠️ 두 가지는 건드리지 않는다 —
+        ① 지금 열려 있는 장소 (사용자가 이제 막 채우려는 중일 수 있다)
+        ② 일정이 가리키는 장소 (지우면 그 일정의 '기록 열기' 가 깨진다) */
+  function cleanupBlankPlaces() {
+    return Promise.all([
+      Store.placeAll(),
+      (window.Plans && Plans.all) ? Plans.all().catch(function () { return []; }) : Promise.resolve([])
+    ]).then(function (r) {
+      var places = r[0] || [], plans = r[1] || [];
+      var keep = {};
+      plans.forEach(function (pl) { if (pl && pl.placeId) keep[pl.placeId] = true; });
+      var curId = (Place.current() || {}).id;
+      var junk = places.filter(function (p) {
+        return Place.isBlank(p) && p.id !== curId && !keep[p.id];
+      });
+      if (!junk.length) return null;
+      return Promise.all(junk.map(function (p) { return Store.placeDelete(p.id); }))
+        .then(function () {
+          console.log('[정리] 내용 없는 장소 ' + junk.length + '건 치움');
+          if (UI.refresh) UI.refresh();
+        });
+    }).catch(function (e) { console.warn('[정리] 실패(무시하고 계속)', e && e.message); });
+  }
 
   /* 로그인 상태가 바뀌면 화면을 갱신한다 (무료 횟수·백업 버튼이 같이 바뀐다) */
   try { Cloud.onChange(function () { if (UI.refresh) UI.refresh(); }); } catch (e) {}

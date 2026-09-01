@@ -124,5 +124,86 @@
     });
   }
 
-  window.MapView = { render: render, distM: distM, available: function () { return CFG.hasKakaoMap(); } };
+  /* ═══ 검색 결과를 지도에 찍기 (주변 장소 찾기용) ═══
+     위의 render() 와 데이터 모양이 다르다:
+       · render() — 저장된 기록 { name, geo:{lat,lng} }
+       · pick()   — 카카오 검색 결과 { name, address, lat, lng, dist }
+     그래서 함수를 나눴다. 하나로 합치면 둘 중 하나는 반드시 억지스러워진다.
+
+     고르는 방법은 '찍고 → 아래 막대에서 확인 → 채우기' 두 단계다.
+     ⚠️ 마커를 누르자마자 채우면, 지도를 훑다가 잘못 눌렀을 때 이름이 엉뚱하게 바뀐다.
+        되돌릴 수 있는 화면이 아니라(오버레이가 곧 닫힌다) 한 단계를 남겨 둔다. */
+  function pick(container, items, opts) {
+    opts = opts || {};
+    var usable = (items || []).filter(function (d) { return d.lat && d.lng; });
+
+    if (!CFG.hasKakaoMap()) {
+      container.innerHTML = '<div class="notice">🗺 지도를 켜려면 카카오 <b>JavaScript 키</b>가 필요합니다 ' +
+        '(REST 키와 다른 값이고, 개발자 콘솔에 도메인 등록도 해야 합니다).<br>' +
+        '지금은 <b>목록</b>으로 골라 주세요.</div>';
+      return;
+    }
+    if (!usable.length) {
+      container.innerHTML = '<div class="empty" style="padding:20px;">좌표가 있는 결과가 없어요.<br>' +
+        '<span class="mini">목록에서 골라 주세요.</span></div>';
+      return;
+    }
+
+    container.innerHTML =
+      '<div class="pf-map" id="pfMapBox"></div>' +
+      '<div class="pf-sel" id="pfSel"><span class="mini">지도에서 장소를 눌러 고르세요</span></div>';
+
+    var box = container.querySelector('#pfMapBox');
+    var sel = container.querySelector('#pfSel');
+
+    loadSdk().then(function () {
+      var c = (opts.center && opts.center.lat) ? opts.center : usable[0];
+      var map = new kakao.maps.Map(box, {
+        center: new kakao.maps.LatLng(c.lat, c.lng),
+        level: 4
+      });
+      var bounds = new kakao.maps.LatLngBounds();
+
+      /* 내 위치 — 기준점이 있어야 '어느 쪽이 가까운지'가 눈으로 읽힌다 */
+      if (opts.center && opts.center.lat) {
+        var me = new kakao.maps.LatLng(opts.center.lat, opts.center.lng);
+        bounds.extend(me);
+        new kakao.maps.Circle({
+          map: map, center: me, radius: 18,
+          strokeWeight: 2, strokeColor: '#2F6B4F', strokeOpacity: 0.9,
+          fillColor: '#2F6B4F', fillOpacity: 0.5
+        });
+      }
+
+      usable.forEach(function (d) {
+        var pos = new kakao.maps.LatLng(d.lat, d.lng);
+        bounds.extend(pos);
+        var mk = new kakao.maps.Marker({ map: map, position: pos, title: d.name || '' });
+        var iw = new kakao.maps.InfoWindow({
+          content: '<div style="padding:6px 10px;font-size:12px;white-space:nowrap;">' +
+                   esc(d.name || '') + '</div>'
+        });
+        kakao.maps.event.addListener(mk, 'click', function () {
+          iw.open(map, mk);
+          sel.innerHTML =
+            '<div class="pf-sel-tx"><b>' + esc(d.name || '') + '</b>' +
+            '<span class="mini">' + esc(d.address || '') +
+              (d.dist != null ? ' · ' + d.dist + 'm' : '') + '</span></div>' +
+            '<button type="button" class="btn sm primary" id="pfMapUse">채우기</button>';
+          var btn = sel.querySelector('#pfMapUse');
+          if (btn) btn.onclick = function () { if (opts.onPick) opts.onPick(d); };
+        });
+      });
+
+      if (usable.length > 1 || (opts.center && opts.center.lat)) map.setBounds(bounds);
+    }).catch(function (e) {
+      container.innerHTML = '<div class="notice">🗺 ' + esc(e.message) + '<br>' +
+        '<b>목록</b>으로 골라 주세요.</div>';
+    });
+  }
+
+  window.MapView = {
+    render: render, pick: pick, distM: distM,
+    available: function () { return CFG.hasKakaoMap(); }
+  };
 })();

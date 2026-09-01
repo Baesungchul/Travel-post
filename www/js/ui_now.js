@@ -99,16 +99,33 @@
       return;
     }
 
+    /* 목록 ↔ 지도 (사용자 요청 2026-08-30).
+       목록은 이름·주소·거리를 정확히 읽기 좋고, 지도는 '어느 쪽인지'가 한눈에 보인다.
+       ⚠️ 같은 검색 결과를 다르게 그리는 것뿐이다 — 모드를 바꿀 때 다시 검색하지 않는다
+          (카카오 쿼터를 두 배로 쓰게 되고, 결과가 바뀌어 사용자가 찾던 곳이 사라질 수도 있다). */
+    var _pfMode = 'list';   // 'list' | 'map'
+    var _pfLast = [];
+
     var ov = overlay({
       title: '주변 ' + esc((pf && pf.name) || '장소') + ' 찾기',
       body: '<input class="inp" id="pfQ" placeholder="이름으로 찾기 (비우면 주변 검색)">' +
+            '<div class="view-toggle" style="margin-top:8px;">' +
+              '<button type="button" class="tag on" id="pfTabList">🗂 목록</button>' +
+              '<button type="button" class="tag" id="pfTabMap">🗺 지도</button>' +
+            '</div>' +
             '<div id="pfList" class="mini" style="margin-top:10px;">위치 잡는 중…</div>',
       foot: '<button class="btn primary" id="pfGo">찾기</button>'
     });
 
-    function draw(list) {
+    /* 고르는 동작은 목록·지도가 똑같아야 한다 — 한 곳에 둔다 */
+    function use(d) {
+      p.name = d.name; p.address = d.address; p.area = d.area || Categories.areaOf(d.address);
+      if (d.lat && d.lng) p.geo = { lat: d.lat, lng: d.lng, at: Date.now() };
+      Place.save().then(function () { ov.close(); UI.renderNow(); showToast('채웠어요', 'ok'); });
+    }
+
+    function drawList(list) {
       var box = ov.querySelector('#pfList');
-      if (!list.length) { box.textContent = '찾은 곳이 없어요. 이름으로 찾아보세요.'; return; }
       box.innerHTML = list.map(function (d, i) {
         return '<div class="row pfPick" data-i="' + i + '"><div>' +
           '<div class="ti">' + esc(d.name) + '</div>' +
@@ -116,14 +133,23 @@
           '</div></div>';
       }).join('');
       box.querySelectorAll('.pfPick').forEach(function (el) {
-        el.onclick = function () {
-          var d = list[+el.getAttribute('data-i')];
-          p.name = d.name; p.address = d.address; p.area = d.area || Categories.areaOf(d.address);
-          if (d.lat && d.lng) p.geo = { lat: d.lat, lng: d.lng, at: Date.now() };
-          Place.save().then(function () { ov.close(); UI.renderNow(); showToast('채웠어요', 'ok'); });
-        };
+        el.onclick = function () { use(list[+el.getAttribute('data-i')]); };
       });
     }
+
+    function draw(list) {
+      if (list) _pfLast = list;
+      var box = ov.querySelector('#pfList');
+      ov.querySelector('#pfTabList').classList.toggle('on', _pfMode === 'list');
+      ov.querySelector('#pfTabMap').classList.toggle('on', _pfMode === 'map');
+      if (!_pfLast.length) { box.textContent = '찾은 곳이 없어요. 이름으로 찾아보세요.'; return; }
+      if (_pfMode === 'map') MapView.pick(box, _pfLast, { center: p.geo || Geo.last(), onPick: use });
+      else drawList(_pfLast);
+    }
+
+    ov.querySelector('#pfTabList').onclick = function () { _pfMode = 'list'; draw(); };
+    ov.querySelector('#pfTabMap').onclick  = function () { _pfMode = 'map';  draw(); };
+
     function search() {
       var q = ov.querySelector('#pfQ').value.trim();
       ov.querySelector('#pfList').textContent = '찾는 중…';

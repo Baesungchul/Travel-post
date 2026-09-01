@@ -15,6 +15,10 @@
   UI.renderRecords = function () {
     var el = document.getElementById('pnRecords');
     if (!el) return;
+    /* 달력을 펼치면 body 스크롤을 잠근다(calendar.js).
+       다른 보기로 넘어갈 때 반드시 풀어야 한다 —
+       안 풀면 목록·지도 화면이 스크롤되지 않는 '먹통'으로 보인다. */
+    if (_view !== 'cal' && window.Cal && Cal.unlock) Cal.unlock();
     Store.placeAll().then(function (list) {
       var pfs = Profiles.list();
       var shown = _filter ? list.filter(function (p) { return p.profileId === _filter; }) : list;
