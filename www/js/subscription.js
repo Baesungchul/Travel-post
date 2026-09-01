@@ -72,7 +72,7 @@
     var q = Subs.quota(kind);
     if (q.total > 0) return { ok: true, msg: '' };
     if (!Subs.loggedIn()) {
-      return { ok: false, msg: '맛보기 ' + TRIAL_FREE + '회를 다 썼어요. 로그인하면 매달 ' +
+      return { ok: false, msg: KIND_LABEL[kind] + '은 로그인 후에 쓸 수 있어요. 로그인하면 매달 ' +
                               FREE_MONTHLY + '회를 무료로 드려요.' };
     }
     return { ok: false, msg: '이번 달 ' + KIND_LABEL[kind] + ' 무료 ' + FREE_MONTHLY +
@@ -94,7 +94,7 @@
     kind = kind || 'post';
     if (Subs.isPaid()) return '무제한';
     var q = Subs.quota(kind);
-    if (!Subs.loggedIn()) return '맛보기 ' + q.trial + '회 남음 (로그인하면 매달 ' + FREE_MONTHLY + '회)';
+    if (!Subs.loggedIn()) return KIND_LABEL[kind] + '은 로그인 후 이용 가능해요 (로그인하면 매달 ' + FREE_MONTHLY + '회 무료)';
     return '이번 달 ' + q.monthly + '/' + FREE_MONTHLY + '회 남음' + (q.coupon ? ' + 쿠폰 ' + q.coupon + '회' : '');
   };
 
