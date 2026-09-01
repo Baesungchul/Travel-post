@@ -7,13 +7,31 @@ android {
         applicationId "com.baesungchul.travelpost"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 3
-        versionName "0.4.1"   // www/js/version.js 의 APP_VERSION 과 같게 유지할 것
+        versionCode 4
+        versionName "0.4.2"   // www/js/version.js 의 APP_VERSION 과 같게 유지할 것
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
              // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
             ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+        }
+    }
+    /* ★ 2026-09-01: 테스트 APK가 매번 '앱을 지워야 설치된다'던 원인.
+          applicationIdSuffix(.debug)는 패키지명을 실제 앱과 다르게 만들 뿐이고,
+          '서명'은 또 다른 문제다 — signingConfigs.debug 를 따로 지정하지 않으면
+          Gradle 이 기본 디버그 키(보통 ~/.android/debug.keystore)를 쓰는데,
+          GitHub Actions 러너는 매번 새 컨테이너라 이 키가 매 빌드 새로 만들어진다.
+          그래서 이전 테스트 APK와 서명이 달라 업데이트 설치가 막혔다(지우고 다시 깔아야 했음).
+          → 고정된 android/debug.keystore 를 저장소에 커밋해 두고(현장매니저와 같은 방식,
+             .gitignore 의 !android/debug.keystore 예외로 커밋됨) 항상 같은 키로 서명한다.
+          ⚠️ 이번 업데이트 한 번은 서명이 또 바뀌므로 지우고 다시 깔아야 하지만,
+             그 다음부터는 계속 같은 키라 덮어쓰기 설치가 된다. */
+    signingConfigs {
+        debug {
+            storeFile file('../debug.keystore')
+            storePassword 'android'
+            keyAlias 'androiddebugkey'
+            keyPassword 'android'
         }
     }
     buildTypes {
@@ -22,7 +40,8 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
         debug {
-            /* ☠️ 이 접미사를 빼면 서명이 달라 '기존 앱을 지워야' 설치된다.
+            signingConfig signingConfigs.debug
+            /* ☠️ 이 접미사를 빼면 패키지명이 실제 앱과 같아져 '기존 앱을 지워야' 설치된다.
                   앱을 지우면 저장된 사진·데이터가 함께 사라진다.
                   현장매니저에서 사진 1,059장을 잃은 것과 같은 경로다. 절대 빼지 말 것. */
             applicationIdSuffix ".debug"

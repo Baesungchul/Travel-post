@@ -233,6 +233,11 @@ textarea.inp{ resize:vertical; min-height:78px; line-height:1.6; }
 .view-toggle .tag{ flex:1; text-align:center; }
 
 /* ═══ 달력 ═══ */
+/* 폴더블 펼친 화면처럼 폭이 아주 넓은 기기에서는 칸이 aspect-ratio 때문에
+   접힌 상태에서 이미 커져 버려, 펼쳐도 커지는 느낌이 잘 안 난다.
+   폭을 모바일 기준으로 묶어 가운데 정렬 — 접힌/펼친 상태 모두 적용된다
+   (사용자 요청 2026-09-01, 갤럭시 Z 폴드7 실측). */
+#calHost{ max-width:480px; margin-left:auto; margin-right:auto; }
 .cal-hd{ display:flex; align-items:center; gap:6px; margin-bottom:8px; }
 .cal-hd .sp{ margin-left:auto; }
 .cal-dow{ display:grid; grid-template-columns:repeat(7,1fr); text-align:center;
