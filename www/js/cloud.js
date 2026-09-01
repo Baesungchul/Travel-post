@@ -12,9 +12,10 @@
    ⚠️ Play 신규 앱은 개인정보처리방침·데이터 보안·**계정 삭제 URL** 을 새로 써야 한다.
       현장매니저 것을 그대로 쓸 수 없다. 앱 안 계정 삭제(deleteAccount)는 여기 있다.
 
-   로그인 방식: 이메일 + 비밀번호.
-   ⬜ 구글 로그인은 Capacitor 에서 네이티브 플러그인·SHA 지문 등록이 따로 필요하다 —
-      확인 전까지 넣지 않는다(사실처럼 말하지 말 것).
+   로그인 방식: 이메일 + 비밀번호, 구글(사용자 요청 2026-09-01).
+   ⬜ 구글 로그인은 코드는 넣었지만 Firebase 콘솔 설정(Google 제공자 켜기 · 웹 클라이언트 ID ·
+      SHA-1 지문 등록)이 끝나기 전까지는 config.js 의 GOOGLE_WEB_CLIENT_ID 가 TODO 로 남아
+      스스로 꺼져 있다 — 실제로 눌러서 확인하기 전까지 "된다"고 말하지 말 것.
 ═══════════════════════════════════════════════════════════ */
 (function () {
   'use strict';
@@ -97,6 +98,58 @@
     return firebase.auth().signInWithEmailAndPassword(email, pw)
       .catch(function (e) { throw new Error(human(e)); });
   };
+  /* ── 구글 로그인 (사용자 요청 2026-09-01) ──
+     네이티브: @capgo/capacitor-social-login(SocialLogin) 으로 idToken 을 받아 Firebase credential 로 로그인.
+     웹(npx serve 등): signInWithPopup 폴백 — WebView 안에서는 구글이 팝업을 막을 수 있다.
+     ⚠️ 현장매니저에서 그대로 가져온 구조다 (js/config.js 의 GOOGLE_WEB_CLIENT_ID, Firebase 콘솔의
+        Google 제공자 켜기·SHA-1 등록이 먼저 되어 있어야 실제로 동작한다).
+     사용자가 취소했을 때는 에러가 아니라 e.code === 'CANCELLED' 로 알린다 —
+     호출부(ui_settings.js)가 이걸로 '조용히 아무 일도 안 하기'와 '진짜 오류'를 구분한다. */
+  C._slInited = false;
+  C.signInWithGoogle = function () {
+    need();
+    if (!CFG.hasGoogleLogin()) {
+      return Promise.reject(new Error('구글 로그인이 아직 설정되지 않았어요 (js/config.js 의 GOOGLE_WEB_CLIENT_ID)'));
+    }
+    var isNative = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+    var SL = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.SocialLogin;
+
+    function cancelled() { var e = new Error('취소했어요'); e.code = 'CANCELLED'; return e; }
+
+    if (isNative) {
+      if (!SL || !SL.login) {
+        return Promise.reject(new Error('구글 로그인 플러그인을 불러오지 못했어요 (빌드를 다시 해야 할 수 있어요)'));
+      }
+      var initP = C._slInited ? Promise.resolve()
+        : SL.initialize({ google: { webClientId: CFG.GOOGLE_WEB_CLIENT_ID } }).then(function () { C._slInited = true; });
+      return initP.then(function () {
+        return SL.login({ provider: 'google' });   // scopes 미지정 — 기본 프로필·이메일만
+      }).then(function (res) {
+        var r = (res && res.result) || {};
+        var idToken = r.idToken;
+        var accessToken = r.accessToken && r.accessToken.token;
+        if (!idToken) throw new Error('구글 토큰을 받지 못했어요');
+        var cred = firebase.auth.GoogleAuthProvider.credential(idToken, accessToken);
+        return firebase.auth().signInWithCredential(cred);
+      }).catch(function (e) {
+        console.warn('[Cloud] 구글 로그인 실패', (e && e.code) || '', (e && e.message) || '', e);
+        var code = (e && e.code) || '';
+        var msg = (e && (e.message || e.error || '')) + '';
+        if (code === 'USER_CANCELLED' || /cancelled by user|popup-closed-by-user|cancelled-popup-request/i.test(msg)) {
+          throw cancelled();
+        }
+        throw new Error(msg.slice(0, 180) || '구글 로그인에 실패했어요');
+      });
+    }
+
+    var provider = new firebase.auth.GoogleAuthProvider();
+    return firebase.auth().signInWithPopup(provider).catch(function (e) {
+      var c = (e && e.code) || '';
+      if (c === 'auth/popup-closed-by-user' || c === 'auth/cancelled-popup-request') throw cancelled();
+      throw new Error(human(e));
+    });
+  };
+
   C.signOut = function () { need(); return firebase.auth().signOut(); };
   C.resetPassword = function (email) {
     need();

@@ -290,7 +290,15 @@
         '<label class="lbl">비밀번호</label>' +
         '<input class="inp" id="lgPw" type="password" autocomplete="current-password" placeholder="6자 이상">' +
         '<div class="mini" style="margin-top:10px;" id="lgWhy">로그인하면 매달 무료 글 생성 횟수를 드리고, 클라우드 백업을 쓸 수 있어요.</div>' +
-        '<button class="btn sm ghost" id="lgReset" style="margin-top:10px;">비밀번호를 잊었어요</button>',
+        '<button class="btn sm ghost" id="lgReset" style="margin-top:10px;">비밀번호를 잊었어요</button>' +
+        '<div style="display:flex;align-items:center;gap:8px;margin:14px 0 10px;">' +
+          '<span style="flex:1;height:1px;background:var(--bd);"></span>' +
+          '<span class="mini">또는</span>' +
+          '<span style="flex:1;height:1px;background:var(--bd);"></span>' +
+        '</div>' +
+        (CFG.hasGoogleLogin()
+          ? '<button class="btn ghost wide" id="lgGoogle">🔵 Google로 로그인</button>'
+          : '<div class="notice">⚠️ 구글 로그인은 아직 설정 중이에요(js/config.js 의 GOOGLE_WEB_CLIENT_ID). 이메일로 로그인해 주세요.</div>'),
       foot: '<button class="btn primary wide" id="lgGo">로그인</button>'
     });
     ov.querySelectorAll('#lgTab .tag').forEach(function (b) {
@@ -317,6 +325,19 @@
         showToast(mode === 'up' ? '가입 완료 — 반가워요' : '로그인했어요', 'ok');
         UI.refresh();
       }).catch(function (e) { hideOverlay(); showToast(e.message, 'err'); });
+    };
+    var gBtn = ov.querySelector('#lgGoogle');
+    if (gBtn) gBtn.onclick = function () {
+      showOverlay('구글 로그인 중...');
+      Cloud.signInWithGoogle().then(function () {
+        hideOverlay(); ov.close();
+        showToast('구글 계정으로 로그인했어요', 'ok');
+        UI.refresh();
+      }).catch(function (e) {
+        hideOverlay();
+        if (e && e.code === 'CANCELLED') return;   /* 사용자가 그냥 닫은 것 — 에러로 안 보여준다 */
+        showToast(e.message, 'err');
+      });
     };
   };
 

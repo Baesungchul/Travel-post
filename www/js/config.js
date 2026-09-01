@@ -40,6 +40,17 @@
     PROXY_AUTH: true,                            // false 로 두지 말 것 (개발 중 임시만)
     MODEL:      'claude-sonnet-5',
 
+    /* ── 구글 로그인 (사용자 요청 2026-09-01) ──
+       현장매니저와 같은 방식: @capgo/capacitor-social-login 플러그인 + Firebase credential 로그인.
+       ⚠️ 이 값 하나만으로는 안 켜진다. Firebase 콘솔(travel-post-52713)에서
+          1) Authentication → Sign-in method 에서 Google 을 켜고
+          2) 거기서 만들어지는(또는 Google Cloud Console 의) OAuth 2.0 **웹** 클라이언트 ID 를 이 값에 넣고
+          3) 안드로이드 앱의 SHA-1 지문을 Firebase 프로젝트의 이 앱(패키지명 com.baesungchul.travelpost /
+             .debug 둘 다)에 등록해야 한다 — 안 하면 로그인창이 뜨자마자 조용히 실패한다
+             (현장매니저에서 실제로 겪은 문제, 2026-08-30 수정 이력 참고).
+          테스트 APK 의 디버그 키 SHA-1: FA:90:5F:18:F9:44:8B:85:F3:20:01:71:B9:98:7E:5C:59:89:F7:34 */
+    GOOGLE_WEB_CLIENT_ID: 'TODO_GOOGLE_WEB_CLIENT_ID',
+
     /* ── PC 링크 공개 페이지 (site/post.html 을 올린 주소) ── */
     POST_BASE:  'https://travel-post-52713.web.app/post.html',
     LINK_TTL_MS: 24 * 60 * 60 * 1000,            // 24시간 (현장매니저와 동일)
@@ -70,6 +81,7 @@
   };
   CFG.hasFirebase = function () { return CFG.isSet('FIREBASE.apiKey') && CFG.isSet('FIREBASE.projectId'); };
   CFG.hasProxy    = function () { return CFG.isSet('PROXY_URL'); };
+  CFG.hasGoogleLogin = function () { return CFG.isSet('GOOGLE_WEB_CLIENT_ID'); };
   CFG.hasKakao    = function () { return CFG.isSet('KAKAO_REST_KEY'); };
   CFG.hasKakaoMap = function () { return CFG.isSet('KAKAO_JS_KEY'); };
   CFG.hasHosting  = function () { return CFG.isSet('POST_BASE'); };
@@ -79,6 +91,7 @@
     var out = [];
     if (!CFG.hasFirebase()) out.push({ k: 'FIREBASE', why: '로그인·백업·PC 링크에 필요합니다. 새 Firebase 프로젝트를 만들어 config.js 에 넣으세요.' });
     if (!CFG.hasProxy())    out.push({ k: 'PROXY_URL', why: 'AI 글 생성에 필요합니다. 인증(Authorization) 검사를 붙인 프록시 주소를 넣으세요.' });
+    if (!CFG.hasGoogleLogin()) out.push({ k: 'GOOGLE_WEB_CLIENT_ID', why: '구글 로그인에 필요합니다. Firebase 콘솔에서 Google 로그인을 켜고 웹 클라이언트 ID를 넣으세요.' });
     if (!CFG.hasHosting())  out.push({ k: 'POST_BASE', why: 'PC 링크 모드에 필요합니다. site/post.html 을 올린 주소를 넣으세요.' });
     if (!CFG.hasKakao())    out.push({ k: 'KAKAO_REST_KEY', why: '주변 장소 자동 채움에 필요합니다. 없으면 상호·주소를 손으로 적게 됩니다.' });
     if (!CFG.hasKakaoMap()) out.push({ k: 'KAKAO_JS_KEY', why: '기록 탭 지도 보기에 필요합니다(REST 키와 다른 값). 없으면 목록으로만 보입니다.' });
