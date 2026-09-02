@@ -230,6 +230,25 @@ textarea.inp{ resize:vertical; min-height:78px; line-height:1.6; }
 .todo{ border:1.5px solid var(--wn); border-radius:10px; padding:10px 12px; margin-bottom:8px; }
 .todo b{ color:var(--wn); }
 
+/* ── 설정 2단 아코디언 (2026-09-02, 현장매니저 참고 — 카드 8개가 한꺼번에 펼쳐져 복잡하다는
+   사용자 지적으로 큰 타이틀→소타이틀→내용 순으로 접었다. 한 번에 하나만 열린다) ── */
+.set-group{ border:1px solid var(--bd); border-radius:12px; margin-bottom:10px; overflow:hidden; background:var(--sf); }
+.set-group-head{ display:flex; align-items:center; justify-content:space-between; gap:8px;
+  padding:13px 14px; cursor:pointer; background:var(--sf2); -webkit-tap-highlight-color:transparent; }
+.set-group-arrow{ font-size:14px; color:var(--mu); transition:transform .15s ease; flex-shrink:0; }
+.set-group.open .set-group-arrow{ transform:rotate(90deg); }
+.set-group-body{ display:none; padding:14px 14px 2px; }
+.set-group.open .set-group-body{ display:block; }
+.set-sub{ border-top:1px solid var(--bd); }
+.set-sub:first-child{ border-top:0; }
+.set-sub-head{ display:flex; align-items:center; justify-content:space-between; gap:8px;
+  padding:12px 2px; cursor:pointer; -webkit-tap-highlight-color:transparent; }
+.set-sub-label{ font-size:13px; font-weight:700; color:var(--tx); }
+.set-sub-arrow{ font-size:12px; color:var(--mu); transition:transform .15s ease; flex-shrink:0; }
+.set-sub.open .set-sub-arrow{ transform:rotate(90deg); }
+.set-sub-body{ display:none; padding:2px 0 10px; }
+.set-sub.open .set-sub-body{ display:block; }
+
 /* 사진 일괄 정리 — 선택 표시 */
 .ph .pick{ position:absolute; inset:0; display:none; align-items:center; justify-content:center;
            background:rgba(47,107,79,.55); color:#fff; font-size:26px; font-weight:900; }
