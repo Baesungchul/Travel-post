@@ -1,0 +1,115 @@
+# 플레이스토어에 올릴 서명된 파일(.aab)을 만든다.
+#   쓰는 법: 자동 실행 안 됨 — Actions 탭 → "플레이스토어 릴리스 빌드" 선택 → "Run workflow" 버튼.
+#   결과물 ① Releases 의 고정 주소 — Play Console 에 그대로 업로드하면 됨
+#            https://github.com/Baesungchul/Travel-post/releases/download/release/jjikgo-release.aab
+#            (직접 설치해서 서명 확인용 apk 도 같은 주소에: jjikgo-release.apk)
+#   결과물 ② 실행 화면 아래 Artifacts 의 release-bundle (zip, 30일 보관)
+#
+# ⚠️ 아래 시크릿 4개를 저장소 Settings → Secrets and variables → Actions 에서 먼저 등록해야 한다.
+#    등록 전엔 이 워크플로가 "서명키 복원" 단계에서 바로 실패한다 — 정상이다.
+#      RELEASE_KEYSTORE_BASE64   — release.keystore 파일을 base64 로 인코딩한 값
+#      RELEASE_KEYSTORE_PASSWORD — 키스토어 암호
+#      RELEASE_KEY_ALIAS         — 키 별칭 (travelpost)
+#      RELEASE_KEY_PASSWORD      — 키 암호 (키스토어 암호와 같은 값)
+#    ☠️ 이 서명키를 잃어버리면 이 앱은 플레이스토어에서 다시는 업데이트할 수 없다.
+#       Claude 대화 기록·메모리에 암호화 백업이 있지만, 사용자도 jjikgo-release.jks 원본과
+#       비밀번호를 따로(이 저장소 밖에) 보관해 둘 것.
+
+name: 플레이스토어 릴리스 빌드
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 소스 받기
+        uses: actions/checkout@v4
+
+      - name: Node 준비
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: 의존성 설치
+        run: npm ci
+
+      - name: Java 준비 (AGP 8.2.1 -> JDK 17)
+        uses: actions/setup-java@v5
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: 비밀 키 주입 (카카오 REST 키)
+        env:
+          KAKAO_REST_KEY: ${{ secrets.KAKAO_REST_KEY }}
+        run: node tools/inject-keys.js
+
+      - name: 웹 자산 동기화
+        run: npx cap sync android
+
+      - name: 서명키 복원
+        run: |
+          if [ -z "${{ secrets.RELEASE_KEYSTORE_BASE64 }}" ]; then
+            echo "::error::RELEASE_KEYSTORE_BASE64 시크릿이 없습니다. 저장소 Settings -> Secrets and variables -> Actions 에서 등록하세요."
+            exit 1
+          fi
+          echo "${{ secrets.RELEASE_KEYSTORE_BASE64 }}" | base64 -d > android/app/release.keystore
+
+      - name: AAB 빌드 (플레이스토어 업로드용)
+        env:
+          RELEASE_KEYSTORE_PATH: release.keystore
+          RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: |
+          chmod +x android/gradlew
+          cd android
+          ./gradlew bundleRelease --no-daemon --stacktrace
+
+      - name: APK 도 함께 빌드 (직접 설치 확인용 — 플레이스토어엔 apk 대신 aab 를 올린다)
+        env:
+          RELEASE_KEYSTORE_PATH: release.keystore
+          RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: |
+          cd android
+          ./gradlew assembleRelease --no-daemon --stacktrace
+
+      - name: 결과물 올리기 (Artifacts)
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-bundle
+          path: |
+            android/app/build/outputs/bundle/release/*.aab
+            android/app/build/outputs/apk/release/*.apk
+          retention-days: 30
+          if-no-files-found: error
+
+      # Releases 에 올리면 주소가 고정돼 매번 같은 링크로 받을 수 있다(테스트 APK 워크플로와 같은 방식).
+      - name: Releases 에 올리기 (주소 고정)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          AAB=$(ls android/app/build/outputs/bundle/release/*.aab | head -1)
+          APK=$(ls android/app/build/outputs/apk/release/*.apk | head -1)
+          cp "$AAB" jjikgo-release.aab
+          cp "$APK" jjikgo-release.apk
+          {
+            echo "플레이스토어 업로드용 릴리스 빌드 — 수동 실행할 때마다 아래 파일이 최신으로 덮어써집니다."
+            echo ""
+            echo "- 빌드: ${GITHUB_SHA:0:7} · $(date -u +'%Y-%m-%d %H:%M') UTC"
+            echo "- 내용: $(git log -1 --pretty=%s)"
+            echo ""
+            echo "jjikgo-release.aab 를 Play Console 프로덕션/테스트 트랙에 그대로 업로드하세요."
+            echo "jjikgo-release.apk 는 실제 서명으로 폰에 직접 깔아 확인해보고 싶을 때만 씁니다."
+          } > notes.md
+          gh release view release >/dev/null 2>&1 || gh release create release --title "플레이스토어 릴리스 빌드 (자동)" --notes-file notes.md --prerelease
+          gh release upload release jjikgo-release.aab jjikgo-release.apk --clobber
+          gh release edit release --notes-file notes.md
