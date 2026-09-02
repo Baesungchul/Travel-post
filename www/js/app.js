@@ -72,7 +72,9 @@ document.addEventListener('DOMContentLoaded', function () {
     if (!id) return null;
     return Place.open(id).catch(function () { return null; });
   }).catch(function () { return null; }).then(function () {
-    UI.switchTab('now');
+    /* 2026-09-02: 기록 탭이 메인(기본) 탭 — 이어 쓰던 장소는 Place.open 으로 이미
+       메모리에 복원돼 있어서, 「지금」 탭을 누르면 바로 이어서 보인다. */
+    UI.switchTab('records');
     cleanupBlankPlaces();   // ⚠️ 복구가 끝난 뒤에 — 그래야 '지금 열린 장소'를 정확히 알고 비켜 간다
   });
 

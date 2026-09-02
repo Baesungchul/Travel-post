@@ -22,10 +22,10 @@
 </header>
 
 <!-- ═══ 지금 ═══ 진행 중인 장소 한 곳 -->
-<section class="panel active" id="pnNow"></section>
+<section class="panel" id="pnNow"></section>
 
-<!-- ═══ 기록 ═══ 장소 목록 -->
-<section class="panel" id="pnRecords"></section>
+<!-- ═══ 기록 ═══ 장소 목록 — 2026-09-02: 메인(기본) 탭으로 지정 -->
+<section class="panel active" id="pnRecords"></section>
 
 <!-- ═══ 글 ═══ 저장된 글 목록 -->
 <section class="panel" id="pnPosts"></section>
@@ -35,9 +35,10 @@
 
 <button class="fab" id="fabNew" type="button" aria-label="새 장소">＋</button>
 
+<!-- 2026-09-02: 기록 탭을 맨 왼쪽 + 메인 탭으로 (사용자 요청) -->
 <nav class="tabbar">
-  <button class="tab-item active" type="button" data-tab="now"><span class="ic">📸</span>지금</button>
-  <button class="tab-item" type="button" data-tab="records"><span class="ic">🗂</span>기록</button>
+  <button class="tab-item active" type="button" data-tab="records"><span class="ic">🗂</span>기록</button>
+  <button class="tab-item" type="button" data-tab="now"><span class="ic">📸</span>지금</button>
   <button class="tab-item" type="button" data-tab="posts"><span class="ic">✍️</span>글</button>
   <button class="tab-item" type="button" data-tab="settings"><span class="ic">⚙️</span>설정</button>
 </nav>

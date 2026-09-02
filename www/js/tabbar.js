@@ -10,7 +10,7 @@
 (function () {
   'use strict';
   var UI = window.UI = window.UI || {};
-  var _tab = 'now';
+  var _tab = 'records';   /* 2026-09-02: 기록 탭을 메인(기본) 탭으로 */
   var PANEL = { now: 'pnNow', records: 'pnRecords', posts: 'pnPosts', settings: 'pnSettings' };
 
   UI.tab = function () { return _tab; };

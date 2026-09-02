@@ -95,6 +95,17 @@
     }).observe(document.documentElement, { childList: true, subtree: true });
   } catch (e) {}
 
+  /* ── 열린 시트 스택 (뒤로가기용) ──
+     overlay() 로 여는 모든 팝업이 여기 쌓인다 — 앱 전체 팝업이 이 함수 하나로 통일돼 있어서
+     (설계안 5장 규칙), 뒤로가기는 이 스택만 보면 '가장 나중에 연 것부터' 닫을 수 있다. */
+  var _ovStack = [];
+  window.closeTopOverlay = function () {
+    if (!_ovStack.length) return false;
+    var top = _ovStack[_ovStack.length - 1];
+    try { top.close(); } catch (e) {}
+    return true;
+  };
+
   /* 오버레이 껍데기 — 세로 flex + 본문만 스크롤 (규칙을 코드로 굳혀 둔다) */
   function overlay(opts) {
     opts = opts || {};
@@ -110,10 +121,16 @@
         (opts.foot ? '<div class="sheet-ft">' + opts.foot + '</div>' : '') +
       '</div>';
     document.body.appendChild(ov);
-    var close = function () { if (ov.parentNode) ov.parentNode.removeChild(ov); lock(); };
+    var close = function () {
+      if (ov.parentNode) ov.parentNode.removeChild(ov);
+      var idx = _ovStack.indexOf(ov);
+      if (idx !== -1) _ovStack.splice(idx, 1);
+      lock();
+    };
     ov.querySelector('.sheet-x').onclick = close;
     ov.addEventListener('click', function (e) { if (e.target === ov) close(); });
     ov.close = close;
+    _ovStack.push(ov);
     lock();
     return ov;
   }
@@ -229,4 +246,47 @@
     }
   };
   window.Place = Place;
+
+  /* ════════════════════════════════════════════════
+     ★ 2026-09-02: 안드로이드 하드웨어 뒤로가기 (사용자 요청)
+        기존: Capacitor 기본 동작 — 어느 화면에서든 뒤로가기 한 번에 앱이 바로 꺼졌다.
+        이제: 카메라 닫기 → 열린 팝업 닫기(가장 나중 것부터, 현재 탭 유지) →
+              달력 펼침 접기 → 기록 탭이 아니면 기록 탭으로 → 기록 탭이면 한 번 더
+              눌러야 종료(2초 내 두 번).
+        ⚠️ 현장매니저 state.js 의 같은 자리 코드를 참고했다. 거긴 팝업마다 만든 시기가
+           달라 모달 id 를 일일이 나열해야 했지만(주석 참고), 여기는 처음부터 모든 팝업이
+           overlay() 하나로 통일돼 있어 위 _ovStack 만 보면 다 잡힌다.
+        ⚠️ @capacitor/app 플러그인이 있어야 이 리스너가 동작한다 — 없으면(구버전 APK)
+           그냥 아무 일도 안 하고 넘어간다(옛날처럼 즉시 종료).
+     ════════════════════════════════════════════════ */
+  try {
+    var _App = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App;
+    if (_App && _App.addListener) {
+      var _backExitReady = false;
+      _App.addListener('backButton', function () {
+        /* 0) 앱 내장 카메라가 열려 있으면 카메라만 닫는다 */
+        if (window.isInAppCameraOpen && isInAppCameraOpen()) { closeInAppCamera(); return; }
+        /* 1) 열린 팝업(시트/다이얼로그/피커) — 가장 나중에 연 것부터 하나씩 */
+        if (window.closeTopOverlay && closeTopOverlay()) return;
+        /* 2) 기록 탭 달력이 펼쳐져(전체화면) 있으면 접기 */
+        if (document.body.classList.contains('cal-lock')) {
+          if (window.Cal && Cal.collapse) Cal.collapse();
+          return;
+        }
+        /* 3) 기록 탭이 아니면 기록 탭으로 (종료하지 않음) */
+        if (window.UI && UI.tab && UI.tab() !== 'records') {
+          UI.switchTab('records');
+          return;
+        }
+        /* 4) 기록 탭 + 열린 것 없음 → "한 번 더 누르면 종료" (2초 내 두 번) */
+        if (_backExitReady) {
+          try { _App.exitApp(); } catch (e) {}
+        } else {
+          _backExitReady = true;
+          showToast('뒤로가기를 한 번 더 누르면 종료됩니다');
+          setTimeout(function () { _backExitReady = false; }, 2000);
+        }
+      });
+    }
+  } catch (e) { console.warn('[뒤로가기] 네이티브 리스너 등록 실패:', e); }
 })();
