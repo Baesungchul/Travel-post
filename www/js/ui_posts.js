@@ -170,7 +170,7 @@
       (r[2] || []).forEach(function (t) { places[t.id] = { name: '🧳 ' + t.name, _trip: true }; });
       if (!posts.length) {
         el.innerHTML = '<div class="empty"><div style="font-size:38px;margin-bottom:10px;">✍️</div>' +
-          '아직 저장한 글이 없어요.<br><span class="mini">「지금」 탭에서 글을 만들면 여기에 쌓입니다.</span></div>';
+          '아직 저장한 글이 없어요.<br><span class="mini">「작성」 탭에서 글을 만들면 여기에 쌓입니다.</span></div>';
         return;
       }
       el.innerHTML = '<div class="card">' + posts.map(function (o) {

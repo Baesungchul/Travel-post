@@ -35,11 +35,14 @@
 
 <button class="fab" id="fabNew" type="button" aria-label="새 장소">＋</button>
 
-<!-- 2026-09-02: 기록 탭을 맨 왼쪽 + 메인 탭으로 (사용자 요청) -->
+<!-- 2026-09-02: 기록 탭을 맨 왼쪽 + 메인 탭으로. 탭 이름도 하는 일 그대로 다시 지음
+     (사용자 요청 — "지금/기록/글"이 성의 없어 보인다고 함).
+     ⚠️ data-tab 값(now/posts 등)은 내부 키라 안 바꿨다 — JS 곳곳에서 이 문자열로
+        분기하는데, 화면 글자만 바꾸면 되는 일이라 굳이 건드릴 위험을 만들지 않았다. -->
 <nav class="tabbar">
   <button class="tab-item active" type="button" data-tab="records"><span class="ic">🗂</span>기록</button>
-  <button class="tab-item" type="button" data-tab="now"><span class="ic">📸</span>지금</button>
-  <button class="tab-item" type="button" data-tab="posts"><span class="ic">✍️</span>글</button>
+  <button class="tab-item" type="button" data-tab="now"><span class="ic">📸</span>작성</button>
+  <button class="tab-item" type="button" data-tab="posts"><span class="ic">✍️</span>완성글</button>
   <button class="tab-item" type="button" data-tab="settings"><span class="ic">⚙️</span>설정</button>
 </nav>
 
