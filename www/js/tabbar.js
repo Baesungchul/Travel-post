@@ -49,7 +49,7 @@
     var el = document.getElementById('catChip');
     if (!el) return;
     var pf = Profiles.forCurrentPlace();
-    el.innerHTML = (pf ? (pf.icon || '📍') + ' ' + esc(pf.name || '카테고리') : '📍 카테고리');
+    el.innerHTML = (pf ? catIconHTML(pf, 15) + ' ' + esc(pf.name || '카테고리') : '📍 카테고리');
   };
 
   UI.onProfileChanged = function () { UI.refresh(); };

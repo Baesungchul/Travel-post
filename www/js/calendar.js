@@ -83,6 +83,22 @@
   }
   Cal.holidayOf = holidayOf;
 
+  /* 그 날 기록들의 카테고리 아이콘 — 확대 격자 칸(cellHTML)에서 '사진' 대신 보여준다
+     (사용자 요청 2026-09-02: 달력 키웠을 때 사진이 아니고 카테고리 이모지를 표시).
+     같은 카테고리가 여러 번이면 한 번만(칸이 좁아 최대 3개까지만) — chIconsOf 와 같은 dedup 방식. */
+  function placeIconsOf(places) {
+    var seen = {}, out = '';
+    for (var i = 0; i < places.length && out.length < 3 * 40; i++) {
+      var snap = places[i].profileSnap || {};
+      var key = snap.iconImg || snap.icon || '📍';
+      if (seen[key]) continue;
+      seen[key] = true;
+      out += catIconHTML(snap, 13);
+      if (Object.keys(seen).length >= 3) break;
+    }
+    return out;
+  }
+
   /* 그 달에 걸치는 것들을 한 번에 모은다 */
   function collect(y, m) {
     var from = ds(y, m, 1);
@@ -141,7 +157,7 @@
       var ic = '';
       if (s.trips.length)  ic += '<b class="ci trip">🧳</b>';
       if (s.plans.length)  ic += '<b class="ci plan">📌' + (s.plans.length > 1 ? s.plans.length : '') + '</b>';
-      if (s.places.length) ic += '<b class="ci place">📷' + (s.places.length > 1 ? s.places.length : '') + '</b>';
+      if (s.places.length) ic += '<b class="ci place">' + placeIconsOf(s.places) + '</b>';
       inner = '<span class="n">' + d + '</span>' +
               (hol ? '<span class="hol">' + esc(hol.slice(0, 4)) + '</span>' : '') +
               '<span class="cal-icos">' + ic + '</span>';
@@ -200,14 +216,14 @@
       s.plans.forEach(function (pl) {
         var pf = pl.catId ? Profiles.get(pl.catId) : null;
         rows += '<div class="ag-row calPlan" data-id="' + pl.id + '"><span class="ag-ic">' +
-                esc(pf ? (pf.icon || '📌') : '📌') + '</span>' +
+                catIconHTML(pf || { icon: '📌' }, 16) + '</span>' +
                 '<span class="ag-tx' + (pl.done ? ' done' : '') + '">' + esc(pl.title || '(제목 없음)') + '</span>' +
                 '<span class="ag-rt">' + esc(pl.time || '일정') + '</span></div>';
       });
       s.places.forEach(function (p) {
         var snap = p.profileSnap || {};
         rows += '<div class="ag-row calPlace" data-id="' + p.id + '"><span class="ag-ic">' +
-                esc(snap.icon || '📷') + '</span>' +
+                catIconHTML(snap, 16) + '</span>' +
                 '<span class="ag-tx">' + esc(placeLabel(p)) + '</span>' +
                 chIconsOf(p.id) +
                 '<span class="ag-rt">사진 ' + (p.photos || []).length + '</span></div>';
@@ -649,7 +665,7 @@
           (pl.done ? '<span style="opacity:.55;text-decoration:line-through;">' : '') +
           esc(pl.title || '(제목 없음)') + (pl.done ? '</span>' : '') +
           (pl.placeId ? '<span class="badge">기록됨</span>' : '') + '</div>' +
-        '<div class="sb">' + esc(pf ? (pf.icon || '📍') + ' ' + pf.name : '') +
+        '<div class="sb">' + (pf ? catIconHTML(pf, 14) + ' ' + esc(pf.name) : '') +
           (pl.memo ? ' · ' + esc(pl.memo.slice(0, 20)) : '') + '</div></div>' +
         '<div class="rt">›</div></div>';
     }).join('');
@@ -658,7 +674,7 @@
       ? '<div class="lbl">다녀온 곳</div>' + s.places.map(function (p) {
           var snap = p.profileSnap || {};
           return '<div class="row calPlace" data-id="' + p.id + '">' +
-            '<div style="font-size:20px;width:28px;text-align:center;">' + esc(snap.icon || '📍') + '</div>' +
+            '<div style="font-size:20px;width:28px;text-align:center;">' + catIconHTML(snap, 20) + '</div>' +
             '<div style="min-width:0;"><div class="ti">' + esc(placeLabel(p)) + '</div>' +
             '<div class="sb">사진 ' + (p.photos || []).length + '장</div></div>' +
             chIconsOf(p.id) +
@@ -705,7 +721,7 @@
           '<label class="lbl">카테고리 <span class="mini">(방문 시작하면 이 태그 세트로 열립니다)</span></label>' +
           '<div class="tagbar" id="pnCat">' + pfs.map(function (pf) {
             return '<button type="button" class="tag' + (pl.catId === pf.id ? ' on' : '') + '" data-c="' + pf.id + '">' +
-              esc((pf.icon || '📍') + ' ' + pf.name) + '</button>';
+              catIconHTML(pf, 15) + ' ' + esc(pf.name) + '</button>';
           }).join('') + '</div>' +
           '<label class="lbl">여행 <span class="mini">(선택)</span></label>' +
           '<div class="tagbar" id="pnTrip">' +

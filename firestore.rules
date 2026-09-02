@@ -7,12 +7,45 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    /* 사용자 데이터 — 본인만 */
+    /* ⭐ 관리자(사용자 요청 2026-09-02) — 현장매니저 firestore.rules 의 isAdmin() 그대로.
+       admin == true 인 계정만 남의 users 문서를 읽고/고칠 수 있다.
+       부트스트랩(맨 처음 관리자를 만드는 것)만 이메일로 한다 — 그 뒤로는 관리자가
+       앱 안(Subs.openUserAdmin)에서 다른 사람에게 넘겨줄 수 있다. */
+    function isAdmin() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.admin == true;
+    }
+    function isBootstrapAdmin() {
+      return request.auth != null && request.auth.token.email == 'bsc500327@gmail.com';
+    }
+
+    /* 사용자 데이터 — 본인 것은 본인이, admin 필드는 관리자(또는 부트스트랩 이메일)만 건드릴 수 있다 */
     match /users/{uid} {
-      allow read, write: if request.auth != null && request.auth.uid == uid;
+      allow get: if request.auth != null && (request.auth.uid == uid || isAdmin());
+      allow list: if isAdmin();   // 관리자 권한 관리 화면에서 이메일로 검색할 때만
+      allow create: if request.auth != null && request.auth.uid == uid
+                    && (!('admin' in request.resource.data) || request.resource.data.admin == false || isBootstrapAdmin());
+      allow update: if isAdmin()
+                    || (request.auth != null && request.auth.uid == uid
+                        && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['admin']) || isBootstrapAdmin()));
+      allow delete: if false;
       match /{sub=**} {
         allow read, write: if request.auth != null && request.auth.uid == uid;
       }
+    }
+
+    /* 쿠폰 — 발급은 관리자만, 사용(redeem)은 로그인한 누구나 자기 uid 를 usedBy 에 한 칸만 더할 수 있다 */
+    match /coupons/{code} {
+      allow get: if request.auth != null;
+      allow list: if isAdmin();
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin()
+        || (request.auth != null
+            && resource.data.active == true
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['usedBy'])
+            && request.resource.data.usedBy.size() == resource.data.usedBy.size() + 1
+            && request.resource.data.usedBy[request.resource.data.usedBy.size() - 1] == request.auth.uid);
     }
 
     /* PC 링크 글 — 주소를 아는 사람은 누구나 **읽기만**.

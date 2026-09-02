@@ -145,7 +145,7 @@
     var pf = pfId ? P.get(pfId) : P.current();
     if (!pf) return null;
     return {
-      name: pf.name || '', icon: pf.icon || '📍',
+      name: pf.name || '', icon: pf.icon || '📍', iconImg: pf.iconImg || '',
       placeLabel: pf.placeLabel || '장소',
       tags: (pf.tags || []).slice(),
       titleFmt: pf.titleFmt || '',

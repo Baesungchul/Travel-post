@@ -249,6 +249,12 @@ textarea.inp{ resize:vertical; min-height:78px; line-height:1.6; }
 .set-sub-body{ display:none; padding:2px 0 10px; }
 .set-sub.open .set-sub-body{ display:block; }
 
+/* ── 카테고리 아이콘 선택 시트 (2026-09-02) ── */
+.icon-grid{ display:grid; grid-template-columns:repeat(7,1fr); gap:6px; margin-top:6px; }
+.icon-cell{ border:1px solid var(--bd); background:var(--sf2); border-radius:9px;
+  font-size:19px; line-height:1; padding:7px 0; cursor:pointer; }
+.icon-cell.on{ border-color:var(--ac); background:var(--soft); }
+
 /* 사진 일괄 정리 — 선택 표시 */
 .ph .pick{ position:absolute; inset:0; display:none; align-items:center; justify-content:center;
            background:rgba(47,107,79,.55); color:#fff; font-size:26px; font-weight:900; }

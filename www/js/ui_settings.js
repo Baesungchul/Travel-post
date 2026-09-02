@@ -33,7 +33,7 @@
       '<div class="sec-hd"><button class="btn sm sp" id="stAddCat">＋ 추가</button></div>' +
       pfs.map(function (pf) {
         return '<div class="set-row catEdit" data-id="' + pf.id + '" style="cursor:pointer;">' +
-          '<div style="font-size:22px;width:30px;text-align:center;">' + esc(pf.icon || '📍') + '</div>' +
+          '<div style="width:30px;text-align:center;">' + catIconHTML(pf, 22) + '</div>' +
           '<div><div class="k">' + esc(pf.name) + (pf.id === curId ? '<span class="badge">지금</span>' : '') + '</div>' +
           '<div class="d">' + esc((pf.tags || []).join(' · ')) + '</div></div>' +
           '<div class="sp mini">›</div></div>';
@@ -96,6 +96,21 @@
           : '') + '</div>' +
       '<div class="mini" style="margin-top:8px;">사진은 기기에 남습니다. 백업은 <b>기기 밖</b>에 두세요.</div>';
 
+    /* ⭐ 관리자 전용(사용자 요청 2026-09-02) — 관리자일 때만 만들고, GROUPS 에도
+       관리자일 때만 끼워 넣는다(아래). 현장매니저의 '쿠폰 발급 · 사용자 관리' 화면을
+       요금제 없는 이 앱 구조에 맞춰 줄였다 — subscription.js 의 openCouponAdmin/openUserAdmin. */
+    if (window.Subs && Subs.isAdmin()) {
+      SEC['관리자'] =
+        '<div class="notice">👑 관리자 계정입니다' +
+          (Cloud.user && Cloud.user.email ? ' (' + esc(Cloud.user.email) + ')' : '') + '</div>' +
+        '<div class="set-row"><div><div class="k">쿠폰 발급</div>' +
+          '<div class="d">글 생성 횟수를 채워주는 쿠폰 코드를 만듭니다</div></div>' +
+          '<button class="btn sm primary sp" id="adCoupon">발급</button></div>' +
+        '<div class="set-row"><div><div class="k">관리자 권한 관리</div>' +
+          '<div class="d">다른 사용자에게 이메일로 관리자 권한을 주거나 뺍니다</div></div>' +
+          '<button class="btn sm ghost sp" id="adUsers">열기</button></div>';
+    }
+
     SEC['이용량'] =
       '<div class="set-row"><div><div class="k">글 생성</div>' +
         '<div class="d">' + esc(Subs.label('post')) + '</div></div>' +
@@ -135,6 +150,7 @@
       { key: 'disp', icon: '🎨', name: '화면 · 정보', desc: '테마 · 글자 크기 · 앱 정보',
         subs: ['화면', '정보'] }
     ];
+    if (SEC['관리자']) GROUPS[1].subs.push('관리자');   // 계정 그룹 안에 관리자 전용 소타이틀을 더한다
 
     function groupHTML(g) {
       var open = _accG === g.key;
@@ -221,6 +237,8 @@
       }).catch(function (e) { showToast(e.message, 'err'); });
     });
     q('#subPlans', function () { Subs.openPlans('요금제', Subs.label('post')); });
+    q('#adCoupon', function () { Subs.openCouponAdmin(); });
+    q('#adUsers', function () { Subs.openUserAdmin(); });
     q('#stAddCat', UI.openCategoryPicker);
 
     el.querySelectorAll('.catEdit').forEach(function (r) {
@@ -247,17 +265,27 @@
     if (stFs) stFs.oninput = function () { setFs(+this.value); };
   };
 
-  /* ── 카테고리 편집 — ⭐ 사진 태그 세트가 핵심 ── */
+  /* ── 카테고리 편집 — ⭐ 사진 태그 세트가 핵심 ──
+     ⚠️ 아이콘은 더 이상 텍스트로 직접 타이핑하지 않는다(사용자 요청 2026-09-02:
+        "적용가능한 이모지를 보여주고 선택할 수있게" + "사용자 이미지도 적용할수 있게").
+        저장 시점까지는 _icon/_iconImg 라는 로컬 변수로만 들고 있다가 「저장」을 눌러야 반영된다. */
   function openCatEditor(id) {
     var pf = Profiles.get(id);
     if (!pf) return;
+    var _icon = pf.icon || '📍';
+    var _iconImg = pf.iconImg || '';
     var ov = overlay({
-      title: esc((pf.icon || '📍') + ' ' + pf.name),
+      title: esc(pf.name),
       body:
         '<label class="lbl">이름</label>' +
         '<input class="inp" id="ceName" value="' + esc(pf.name) + '">' +
-        '<label class="lbl">아이콘 <span class="mini">(이모지 1개)</span></label>' +
-        '<input class="inp" id="ceIcon" value="' + esc(pf.icon || '') + '" maxlength="4">' +
+        '<label class="lbl">아이콘</label>' +
+        '<div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;">' +
+          '<button type="button" id="ceIconBtn" style="width:48px;height:48px;border-radius:12px;' +
+            'border:1px solid var(--bd);background:var(--sf2);display:flex;align-items:center;justify-content:center;">' +
+            catIconHTML({ icon: _icon, iconImg: _iconImg }, 28) + '</button>' +
+          '<div class="mini">눌러서 이모지를 고르거나 사진을 넣을 수 있어요</div>' +
+        '</div>' +
         '<label class="lbl">장소 호칭 <span class="mini">(가게 / 숙소 / 코스 …)</span></label>' +
         '<input class="inp" id="cePlace" value="' + esc(pf.placeLabel || '') + '">' +
         '<label class="lbl">⭐ 사진 태그 <span class="mini">(쉼표로 구분. 이 순서가 곧 글과 공유의 순서입니다)</span></label>' +
@@ -274,12 +302,21 @@
       foot: '<button class="btn danger sm" id="ceDel">삭제</button>' +
             '<button class="btn primary" id="ceSave">저장</button>'
     });
+    ov.querySelector('#ceIconBtn').onclick = function () {
+      openIconPicker(_icon, function (res) {
+        if (res.type === 'emoji') { _icon = res.value; _iconImg = ''; }
+        else if (res.type === 'image') { _iconImg = res.value; }
+        else if (res.type === 'clear') { _iconImg = ''; }
+        var b = ov.querySelector('#ceIconBtn');
+        if (b) b.innerHTML = catIconHTML({ icon: _icon, iconImg: _iconImg }, 28);
+      });
+    };
     ov.querySelector('#ceSave').onclick = function () {
       var g = function (s) { return ov.querySelector(s).value.trim(); };
       var tags = g('#ceTags').split(',').map(function (t) { return t.trim(); }).filter(Boolean);
       if (!tags.length) { showToast('사진 태그는 하나 이상 필요해요', 'err'); return; }
       Profiles.save({
-        id: id, name: g('#ceName') || pf.name, icon: g('#ceIcon') || '📍',
+        id: id, name: g('#ceName') || pf.name, icon: _icon || '📍', iconImg: _iconImg,
         placeLabel: g('#cePlace') || '장소', tags: tags,
         titleFmt: g('#ceTitle'),
         hashtags: g('#ceHash').split(',').map(function (t) { return t.trim().replace(/^#/, ''); }).filter(Boolean),
@@ -292,6 +329,59 @@
       if (!confirm('이 카테고리를 지울까요?\n이미 만든 기록은 그대로 남습니다.')) return;
       Profiles.remove(id);
       ov.close(); UI.refresh();
+    };
+  }
+  UI.openCatEditor = openCatEditor;   /* 「카테고리 고르기」에서도 바로 편집할 수 있게 노출 */
+
+  /* ── 아이콘 선택 시트 — 이모지 고르기 + 사진 선택 (사용자 요청 2026-09-02) ──
+     onPick({type:'emoji', value}) | ({type:'image', value: dataURL}) | ({type:'clear'}) */
+  var ICON_EMOJI = [
+    '🍚','🍜','🍕','🍔','🍣','🍱','🥘','🍲','🍤','🥗','🍰','🍩','☕','🍵','🍺','🍷','🍹','🧋',
+    '🏞️','🏔️','⛰️','🌋','🏖️','🏝️','🌊','🌳','🌲','🌸','🍁','⛩️','🗼','🏰','🏯','🎡','🎢','🌉',
+    '🎭','🎪','🎫','🎨','🖼️','🎬','🎵','🎤','🎸','📸',
+    '⚽','🏀','⚾','🏈','🎾','⛳','🏊','🚴','🧗','🏂','🎳','🏸',
+    '🏨','🛏️','🏕️','⛺','🏠','🏢','🏬','🏛️','⛪','🕌',
+    '🐾','🐟','🦁','🌺','❄️','⭐','❤️','📍','🎁','🛍️'
+  ];
+  function openIconPicker(curIcon, onPick) {
+    var ov2 = overlay({
+      title: '아이콘 선택',
+      body:
+        '<button type="button" class="btn ghost wide" id="icPickImg">🖼 사진에서 선택</button>' +
+        '<label class="lbl" style="margin-top:14px;">이모지</label>' +
+        '<div class="icon-grid">' + ICON_EMOJI.map(function (e) {
+          return '<button type="button" class="icon-cell' + (e === curIcon ? ' on' : '') +
+            '" data-e="' + e + '">' + e + '</button>';
+        }).join('') + '</div>' +
+        '<label class="lbl" style="margin-top:14px;">직접 입력 <span class="mini">(목록에 없는 이모지)</span></label>' +
+        '<div style="display:flex;gap:8px;">' +
+          '<input class="inp" id="icCustom" maxlength="4" placeholder="이모지를 붙여넣어 주세요">' +
+          '<button class="btn sm" id="icCustomGo">사용</button></div>',
+      foot: '<button class="btn ghost sm" id="icClear">사진 지우기</button>'
+    });
+    ov2.querySelectorAll('.icon-cell').forEach(function (b) {
+      b.onclick = function () { onPick({ type: 'emoji', value: b.getAttribute('data-e') }); ov2.close(); };
+    });
+    ov2.querySelector('#icCustomGo').onclick = function () {
+      var v = ov2.querySelector('#icCustom').value.trim();
+      if (!v) { showToast('이모지를 입력해 주세요', 'err'); return; }
+      onPick({ type: 'emoji', value: v }); ov2.close();
+    };
+    ov2.querySelector('#icClear').onclick = function () { onPick({ type: 'clear' }); ov2.close(); };
+    ov2.querySelector('#icPickImg').onclick = function () {
+      var f = document.getElementById('filePick');
+      f.value = '';
+      f.onchange = function () {
+        var file = f.files && f.files[0];
+        if (!file) return;
+        showOverlay('이미지 처리 중...');
+        Img.compress(file, 128, 0.85).then(function (r) {
+          hideOverlay();
+          onPick({ type: 'image', value: r.dataUrl });
+          ov2.close();
+        }).catch(function () { hideOverlay(); showToast('이미지를 처리하지 못했어요', 'err'); });
+      };
+      f.click();
     };
   }
 

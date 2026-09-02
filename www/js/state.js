@@ -160,6 +160,24 @@
   }
   window.placeLabel = placeLabel;
 
+  /* ── 카테고리 아이콘 표시 ──
+     카테고리(프로필) 아이콘은 이모지 한 글자(icon)이거나, 사용자가 넣은 사진(iconImg,
+     data: URL)일 수 있다(사용자 요청 2026-09-02: "사용자 이미지도 적용할수 있게").
+     ⚠️ icon 필드 자체에 data: URL을 넣지 않는다 — esc()로 그대로 이모지 자리에
+        찍던 기존 코드가 많아서, 거기서 긴 문자열이 그대로 글자로 보이면 화면이 깨진다.
+        그래서 iconImg 를 별도 필드로 두고, 이 헬퍼를 거치는 곳만 사진을 보여준다. */
+  function catIconHTML(pf, size) {
+    var px = size || 20;
+    if (pf && pf.iconImg) {
+      return '<img src="' + esc(pf.iconImg) + '" style="width:' + px + 'px;height:' + px +
+        'px;border-radius:' + Math.max(4, Math.round(px * 0.22)) + 'px;object-fit:cover;' +
+        'vertical-align:-.2em;flex:none;" alt="">';
+    }
+    var ic = (pf && pf.icon) || '📍';
+    return '<span style="font-size:' + px + 'px;line-height:1;vertical-align:-.1em;">' + esc(ic) + '</span>';
+  }
+  window.catIconHTML = catIconHTML;
+
   function copyText(t) {
     try { if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(t); return true; } } catch (e) {}
     try {

@@ -29,6 +29,12 @@
   var KIND_LABEL = { post: '글 생성' };
 
   var KEY = CFG.k('subs_v1');
+  /* ⭐ 관리자 계정(사용자 요청 2026-09-02) — 현장매니저 subscription.js 의 users/{uid}.admin
+     구조를 그대로 가져왔다. 부트스트랩(맨 처음 관리자 지정)만 이메일로 하고,
+     그 다음부터는 관리자가 앱 안에서(Subs.openUserAdmin) 다른 사람에게 넘길 수 있다.
+     ⚠️ 실제 권한은 firestore.rules 의 isBootstrapAdmin()/isAdmin() 이 서버에서 강제한다 —
+        아래 admin 플래그는 그 서버 값을 그대로 반영해 보여주는 캐시일 뿐이다. */
+  var ADMIN_BOOTSTRAP_EMAIL = 'bsc500327@gmail.com';
 
   function ym() {
     var d = new Date();
@@ -37,11 +43,12 @@
   function load() {
     var S;
     try { S = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) { S = null; }
-    if (!S) S = { ym: ym(), used: { post: 0 }, trialUsed: 0, coupon: { post: 0, exp: 0 }, plan: 'free' };
+    if (!S) S = { ym: ym(), used: { post: 0 }, trialUsed: 0, coupon: { post: 0, exp: 0 }, plan: 'free', admin: false };
     if (S.ym !== ym()) { S.ym = ym(); S.used = { post: 0 }; }        // 달이 바뀌면 월 한도 초기화
     if (!S.used) S.used = { post: 0 };
     if (!S.coupon) S.coupon = { post: 0, exp: 0 };
     if (S.coupon.exp && Date.now() > S.coupon.exp) S.coupon = { post: 0, exp: 0 };
+    if (S.admin == null) S.admin = false;
     return S;
   }
   function save(S) { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
@@ -51,6 +58,32 @@
     return false;
   };
   Subs.loggedIn = function () { return !!(window.Cloud && Cloud.loggedIn()); };
+  Subs.isAdmin = function () { return !!load().admin; };
+
+  /* 로그인 상태가 바뀔 때마다 서버의 진짜 admin 값을 당겨 온다(캐시 최신화).
+     같은 김에 users/{uid}.email 도 맞춰 둔다 — 관리자가 이메일로 사용자를 찾으려면
+     그 필드가 있어야 한다(현장매니저는 shareCode 라는 이름을 썼지만 여기선 그대로 email). */
+  function pullAdmin() {
+    if (!Subs.loggedIn()) {
+      var S0 = load();
+      if (S0.admin) { S0.admin = false; save(S0); }
+      return;
+    }
+    var uid = Cloud.uid();
+    var email = ((Cloud.user && Cloud.user.email) || '').toLowerCase();
+    Cloud.db().collection('users').doc(uid).get().then(function (doc) {
+      var d = (doc && doc.exists) ? (doc.data() || {}) : {};
+      if (email && d.email !== email) {
+        Cloud.db().collection('users').doc(uid).set({ email: email }, { merge: true }).catch(function () {});
+      }
+      var S = load();
+      var was = !!S.admin;
+      S.admin = (d.admin === true);
+      save(S);
+      if (was !== S.admin) { try { if (window.UI && UI.refresh) UI.refresh(); } catch (e) {} }
+    }).catch(function (e) { console.warn('[Subs] 관리자 상태 확인 실패', e && e.code); });
+  }
+  try { if (window.Cloud && Cloud.onChange) Cloud.onChange(pullAdmin); } catch (e) {}
 
   /* 남은 횟수 {coupon, monthly, trial, total} */
   Subs.quota = function (kind) {
@@ -204,6 +237,92 @@
       return n;
     });
   }
+
+  /* ── 관리자: 쿠폰 발급 ──
+     이 앱엔 요금제(플랜)가 없고 '글 생성 횟수'만 세므로, 현장매니저의 쿠폰 발급 화면에서
+     플랜별 항목(일정·글작성 등)을 빼고 post 횟수 하나만 남겼다. 스키마는 redeem() 이 읽는
+     그대로다: post / maxUses / usedBy / expiresAt(Timestamp) / active. */
+  function genCode() {
+    var s = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789', out = 'TP-';
+    for (var i = 0; i < 8; i++) { if (i === 4) out += '-'; out += s[Math.floor(Math.random() * s.length)]; }
+    return out;
+  }
+  Subs.openCouponAdmin = function () {
+    if (!Subs.loggedIn() || !Subs.isAdmin()) { showToast('관리자만 사용할 수 있습니다', 'err'); return; }
+    var ov = overlay({
+      title: '🎟 쿠폰 발급 (관리자)',
+      body:
+        '<label class="lbl">코드</label><input class="inp" id="cpCode" value="' + genCode() + '">' +
+        '<label class="lbl">글 생성 횟수</label><input class="inp" id="cpPost" type="number" value="10">' +
+        '<div class="btn-row" style="margin-top:8px;">' +
+          '<div style="flex:1;"><label class="lbl">유효기간(일)</label><input class="inp" id="cpDays" type="number" value="30"></div>' +
+          '<div style="flex:1;"><label class="lbl">사용 가능 인원</label><input class="inp" id="cpMax" type="number" value="1"></div>' +
+        '</div>',
+      foot: '<button class="btn ghost" id="cpCancel">취소</button><button class="btn primary" id="cpMake">발급</button>'
+    });
+    ov.querySelector('#cpCancel').onclick = ov.close;
+    ov.querySelector('#cpMake').onclick = function () {
+      var code = ov.querySelector('#cpCode').value.trim().toUpperCase();
+      var post = parseInt(ov.querySelector('#cpPost').value, 10) || 0;
+      var days = parseInt(ov.querySelector('#cpDays').value, 10) || 30;
+      var maxUses = parseInt(ov.querySelector('#cpMax').value, 10) || 1;
+      if (!code) { showToast('코드를 입력해주세요', 'err'); return; }
+      Cloud.db().collection('coupons').doc(code).set({
+        post: post, maxUses: maxUses, usedBy: [], active: true,
+        expiresAt: firebase.firestore.Timestamp.fromMillis(Date.now() + days * 86400000),
+        createdBy: Cloud.uid(), createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      }).then(function () {
+        ov.close();
+        try { if (navigator.clipboard) navigator.clipboard.writeText(code); } catch (e) {}
+        showToast('발급됨 — ' + code + ' (클립보드에 복사됨)', 'ok');
+      }).catch(function (e) { showToast('발급 실패: ' + ((e && e.code) || ''), 'err'); });
+    };
+  };
+
+  /* ── 관리자: 다른 사용자에게 관리자 권한 주기/빼기 ──
+     이메일로 users 컬렉션을 찾는다 — pullAdmin() 이 로그인마다 email 필드를 맞춰 두므로
+     상대가 한 번이라도 로그인한 적이 있으면 찾아진다. */
+  Subs.openUserAdmin = function () {
+    if (!Subs.loggedIn() || !Subs.isAdmin()) { showToast('관리자만 사용할 수 있습니다', 'err'); return; }
+    var ov = overlay({
+      title: '🛠 관리자 권한 관리',
+      body:
+        '<div class="mini">이메일로 찾아 관리자 권한을 주거나 뺍니다. 상대가 이 앱에서 로그인한 적이 있어야 찾을 수 있어요.</div>' +
+        '<div style="display:flex;gap:8px;margin-top:8px;">' +
+          '<input class="inp" id="uaEmail" placeholder="사용자 이메일" autocapitalize="off" style="flex:1;">' +
+          '<button class="btn sm" id="uaFind">검색</button></div>' +
+        '<div id="uaResult" style="margin-top:12px;"></div>'
+    });
+    var box = ov.querySelector('#uaResult');
+    var inp = ov.querySelector('#uaEmail');
+    function doFind() {
+      var email = (inp.value || '').trim().toLowerCase();
+      if (!email) { showToast('이메일을 입력해주세요', 'err'); return; }
+      box.innerHTML = '<div class="mini">검색 중…</div>';
+      Cloud.db().collection('users').where('email', '==', email).limit(1).get().then(function (snap) {
+        if (snap.empty) { box.innerHTML = '<div class="mini">해당 이메일의 사용자를 찾을 수 없어요.</div>'; return; }
+        var doc = snap.docs[0];
+        render(doc.id, doc.data() || {});
+      }).catch(function (e) { box.innerHTML = '<div class="mini">검색 실패: ' + esc((e && e.code) || '') + '</div>'; });
+    }
+    ov.querySelector('#uaFind').onclick = doFind;
+    inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') doFind(); });
+    function render(uid, d) {
+      var isAdm = d.admin === true;
+      box.innerHTML =
+        '<div class="box"><div class="k">' + esc(d.email || uid) + (isAdm ? ' 👑' : '') + '</div>' +
+        '<label class="chk" style="margin-top:8px;"><input type="checkbox" id="uaAdmin"' + (isAdm ? ' checked' : '') +
+          '><span>관리자 권한</span></label></div>';
+      var cb = box.querySelector('#uaAdmin');
+      cb.onchange = function () {
+        var on = cb.checked;
+        Cloud.db().collection('users').doc(uid).set({ admin: on }, { merge: true }).then(function () {
+          showToast(on ? '관리자로 지정했어요' : '관리자 권한을 뺐어요', 'ok');
+          if (uid === Cloud.uid()) { var S = load(); S.admin = on; save(S); UI.refresh(); }
+        }).catch(function (e) { showToast('변경 실패: ' + ((e && e.code) || ''), 'err'); cb.checked = !on; });
+      };
+    }
+  };
 
   console.log('[Subs]', Subs.label('post'));
 })();

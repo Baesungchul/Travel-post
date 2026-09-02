@@ -52,7 +52,20 @@
       placeLabel: '전시',
       tags: ['입구', '작품', '공간', '굿즈'],
       titleFmt: '{상호} 전시 관람 후기',
-      hashtags: ['{상호}', '전시추천', '{지역}전시', '주말전시'] }
+      hashtags: ['{상호}', '전시추천', '{지역}전시', '주말전시'] },
+
+    /* 사용자 요청(2026-09-02)으로 추가 */
+    { id: 'perform', name: '공연', icon: '🎭', mvp: false,
+      placeLabel: '공연장',
+      tags: ['외관', '무대', '공연중', '굿즈'],
+      titleFmt: '{상호} 공연 후기',
+      hashtags: ['{상호}', '공연추천', '{지역}공연', '공연후기'] },
+
+    { id: 'sports', name: '스포츠', icon: '⚽', mvp: false,
+      placeLabel: '경기장',
+      tags: ['외관', '경기', '분위기', '먹거리'],
+      titleFmt: '{지역} {상호} 관람 후기',
+      hashtags: ['{상호}', '{지역}스포츠', '직관후기', '경기관람'] }
   ];
 
   function get(id) {

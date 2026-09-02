@@ -38,9 +38,11 @@
         '<div class="mini">카테고리가 사진 태그·글 지침·해시태그를 통째로 바꿉니다.</div>' +
         '<div class="box">' + list.map(function (p) {
           return '<div class="row catPick" data-id="' + p.id + '">' +
-            '<div style="font-size:24px;width:36px;text-align:center;">' + esc(p.icon || '📍') + '</div>' +
+            '<div style="width:36px;text-align:center;">' + catIconHTML(p, 24) + '</div>' +
             '<div><div class="ti">' + esc(p.name) + (p.id === curId ? '<span class="badge">지금</span>' : '') + '</div>' +
-            '<div class="sb">' + esc((p.tags || []).join(' · ')) + '</div></div></div>';
+            '<div class="sb">' + esc((p.tags || []).join(' · ')) + '</div></div>' +
+            /* 사용자 요청(2026-09-02): 카테고리 고르기에서 바로 수정도 되게 */
+            '<button type="button" class="btn sm ghost sp catEditBtn" data-id="' + p.id + '" title="수정">✎</button></div>';
         }).join('') + '</div>' +
         (cat.length ?
           '<div class="lbl">추가할 수 있는 카테고리</div>' +
@@ -50,6 +52,13 @@
       foot: '<button class="btn ghost" id="catCustom">직접 만들기</button>'
     });
 
+    ov.querySelectorAll('.catEditBtn').forEach(function (b) {
+      b.onclick = function (e) {
+        e.stopPropagation();
+        ov.close();
+        if (UI.openCatEditor) UI.openCatEditor(b.getAttribute('data-id'));
+      };
+    });
     ov.querySelectorAll('.catPick').forEach(function (el) {
       el.onclick = function () {
         var id = el.getAttribute('data-id');
@@ -191,7 +200,7 @@
 
     el.innerHTML =
       '<div class="card">' +
-        '<div class="sec-hd"><h2>' + esc(pf ? (pf.icon || '📍') + ' ' + pf.name : '장소') + '</h2>' +
+        '<div class="sec-hd"><h2>' + (pf ? catIconHTML(pf, 18) + ' ' + esc(pf.name) : esc('장소')) + '</h2>' +
           '<button type="button" class="btn sm danger sp" id="btnDelPlace" title="이 기록 삭제">🗑 삭제</button></div>' +
         '<label class="lbl">' + esc(catFill('{장소호칭} 이름', pf)) + '</label>' +
         '<div style="display:flex;gap:8px;">' +

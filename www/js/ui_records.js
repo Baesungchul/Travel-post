@@ -45,7 +45,7 @@
           pfs.map(function (pf) {
             var n = list.filter(function (p) { return p.profileId === pf.id; }).length;
             return '<button type="button" class="tag' + (_filter === pf.id ? ' on' : '') + '" data-pf="' + pf.id + '">' +
-              esc((pf.icon || '📍') + ' ' + pf.name) + '<span class="n">' + n + '</span></button>';
+              catIconHTML(pf, 15) + ' ' + esc(pf.name) + '<span class="n">' + n + '</span></button>';
           }).join('') + '</div>');
 
       /* ⚠️ 달력·여행은 기록이 하나도 없어도 쓸 수 있어야 한다(계획을 먼저 세우니까).
@@ -74,7 +74,7 @@
             '<div class="thumb">' + (first ? '<img data-ph="' + first.id + '" alt="">' : '') + '</div>' +
             '<div style="min-width:0;">' +
               '<div class="ti">' + esc(placeLabel(p)) + '</div>' +
-              '<div class="sb">' + esc((snap.icon || '📍') + ' ' + (snap.name || '')) +
+              '<div class="sb">' + catIconHTML(snap, 14) + ' ' + esc(snap.name || '') +
                 ' · 사진 ' + (p.photos || []).length + '장' +
                 (p.area ? ' · ' + esc(p.area) : '') + '</div>' +
             '</div>' +
@@ -184,7 +184,7 @@
                 var snap = p.profileSnap || {};
                 return '<div class="row"><div style="width:22px;font-weight:800;">' + (i + 1) + '</div>' +
                   '<div style="min-width:0;"><div class="ti">' + esc(placeLabel(p)) + '</div>' +
-                  '<div class="sb">' + esc((snap.icon || '📍') + ' ' + (snap.name || '')) +
+                  '<div class="sb">' + catIconHTML(snap, 14) + ' ' + esc(snap.name || '') +
                     ' · 사진 ' + (p.photos || []).length + '장</div></div>' +
                   '<div class="rt">' +
                     '<button class="btn sm ghost trUp" data-p="' + p.id + '">▲</button> ' +
@@ -249,7 +249,7 @@
               var snap = p.profileSnap || {};
               return '<div class="row pkRow" data-id="' + p.id + '"><div>' +
                 '<div class="ti">' + esc(placeLabel(p)) + '</div>' +
-                '<div class="sb">' + esc((snap.icon || '📍') + ' ' + (snap.name || '')) + ' · ' +
+                '<div class="sb">' + catIconHTML(snap, 14) + ' ' + esc(snap.name || '') + ' · ' +
                 esc(String(p.visitedAt || '').slice(0, 10)) + '</div></div></div>';
             }).join('') + '</div>'
           : '<div class="empty">담을 수 있는 기록이 없어요.</div>'
@@ -304,7 +304,7 @@
       if (!p) return;
       var snap = p.profileSnap || {};
       var ov = overlay({
-        title: esc((snap.icon || '📍') + ' ' + placeLabel(p)),
+        title: catIconHTML(snap, 18) + ' ' + esc(placeLabel(p)),
         body:
           '<div class="mini">' + esc(String(p.visitedAt || '').replace('T', ' ')) +
             (p.address ? ' · ' + esc(p.address) : '') +
