@@ -34,7 +34,7 @@
           var c = ClaudeAI.channel(k);
           return '<button type="button" class="ch' + (k === chId ? ' on' : '') + '" data-ch="' + k + '"' +
             (c.ready ? '' : ' disabled title="' + esc(c.pendingWhy || '') + '"') + '>' +
-            c.icon + ' ' + esc(c.label) + (c.ready ? '' : ' <span class="mini">준비중</span>') + '</button>';
+            ClaudeAI.channelIcon(k, 18) + ' ' + esc(c.label) + (c.ready ? '' : ' <span class="mini">준비중</span>') + '</button>';
         }).join('') + '</div>' +
         '<label class="lbl">강조하고 싶은 것 <span class="mini">(선택)</span></label>' +
         '<input class="inp" id="wHint" placeholder="예) 웨이팅 정보를 꼭 넣어줘 / 아이랑 가기 좋은 점">' +
@@ -178,7 +178,7 @@
         var ch = ClaudeAI.channel(o.ch);
         var head = String(o.text || '').split('\n').filter(Boolean)[0] || '(빈 글)';
         return '<div class="row postRow" data-id="' + o.id + '">' +
-          '<div style="font-size:22px;width:32px;text-align:center;">' + ch.icon + '</div>' +
+          '<div style="width:32px;text-align:center;">' + ClaudeAI.channelIcon(o.ch, 22) + '</div>' +
           '<div style="min-width:0;"><div class="ti">' + esc(head.slice(0, 30)) + '</div>' +
           '<div class="sb">' + esc(ch.label) + ' · ' + esc(pl.name || '이름 없음') +
             (o.published ? '<span class="badge">발행</span>' : '') + '</div></div>' +
@@ -209,7 +209,7 @@
   function openPostSheet(post, place) {
     var ch = ClaudeAI.channel(post.ch);
     var ov = overlay({
-      title: ch.icon + ' ' + esc(ch.label),
+      title: ClaudeAI.channelIcon(post.ch, 18) + ' ' + esc(ch.label),
       body:
         '<div class="mini">' + esc((place && place.name) || '이름 없음') + ' · ' +
           new Date(post.createdAt).toLocaleString('ko-KR') + '</div>' +

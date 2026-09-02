@@ -263,7 +263,7 @@
         '<div class="tagbar">' + posts.map(function (o) {
           var ch = ClaudeAI.channel(o.ch);
           return '<button type="button" class="tag postOpen" data-id="' + o.id + '">' +
-            ch.icon + ' ' + esc(ch.label) + '</button>';
+            ClaudeAI.channelIcon(o.ch, 14) + ' ' + esc(ch.label) + '</button>';
         }).join('') + '</div>';
       box.querySelectorAll('.postOpen').forEach(function (b) {
         b.onclick = function () {

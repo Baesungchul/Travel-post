@@ -319,7 +319,7 @@
           (posts.length ? '<div class="box">' + posts.map(function (o) {
             var ch = ClaudeAI.channel(o.ch);
             return '<div class="row postRow" data-id="' + o.id + '"><div style="min-width:0;">' +
-              '<div class="ti">' + ch.icon + ' ' + esc(ch.label) + '</div>' +
+              '<div class="ti">' + ClaudeAI.channelIcon(o.ch, 16) + ' ' + esc(ch.label) + '</div>' +
               '<div class="sb">' + new Date(o.createdAt).toLocaleDateString('ko-KR') +
                 (o.published ? ' · 발행됨' : '') + '</div></div><div class="rt">›</div></div>';
           }).join('') + '</div>' : '<div class="mini">아직 없어요</div>'),

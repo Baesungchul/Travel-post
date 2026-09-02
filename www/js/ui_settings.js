@@ -45,7 +45,7 @@
         ClaudeAI.CH_KEYS.map(function (k) {
           var c = ClaudeAI.channel(k);
           return '<div class="set-row guideEdit" data-ch="' + k + '" style="cursor:pointer;">' +
-            '<div style="font-size:20px;width:30px;text-align:center;">' + c.icon + '</div>' +
+            '<div style="width:30px;text-align:center;">' + ClaudeAI.channelIcon(k, 20) + '</div>' +
             '<div><div class="k">' + esc(c.label) +
               (ClaudeAI.hasGuide(k) ? '<span class="badge">작성됨</span>' : '') +
               (c.ready ? '' : '<span class="badge" style="background:rgba(196,69,58,.12);color:var(--wn);">준비중</span>') +
@@ -61,7 +61,7 @@
           '카테고리·채널마다 따로 쌓입니다.</div>' +
         ClaudeAI.readyChannels().map(function (k) {
           var c = ClaudeAI.channel(k);
-          return '<div class="set-row"><div class="k">' + c.icon + ' ' + esc(c.label) + '</div>' +
+          return '<div class="set-row"><div class="k">' + ClaudeAI.channelIcon(k, 16) + ' ' + esc(c.label) + '</div>' +
             '<div class="sp mini">' + ClaudeAI.correctionCount(k) + '건 ' +
             '<button class="btn sm ghost corrClear" data-ch="' + k + '">비우기</button></div></div>';
         }).join('') +
@@ -247,7 +247,7 @@
     var c = ClaudeAI.channel(chId);
     var pf = Profiles.current();
     var ov = overlay({
-      title: c.icon + ' ' + esc(c.label) + ' 지침',
+      title: ClaudeAI.channelIcon(chId, 18) + ' ' + esc(c.label) + ' 지침',
       body:
         (c.ready ? '' : '<div class="notice">⬜ ' + esc(c.pendingWhy || '') + '<br>실측 전까지 이 채널은 글 만들기에서 고를 수 없습니다.</div>') +
         '<div class="mini">' + esc((Profiles.current() || {}).name || '') +

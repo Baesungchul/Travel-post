@@ -54,6 +54,16 @@ if ('serviceWorker' in navigator) {
 }
 
 document.addEventListener('DOMContentLoaded', function () {
+  /* ★ 2026-09-02: 스크롤이 아예 안 먹는다는 제보(지금 탭 맨 아래) 대응 — 안전장치.
+     body.modal-open(오버레이 열림 중 스크롤 잠금) / body.cal-lock(달력 펼침 중 잠금) 은
+     둘 다 순수 메모리상의 DOM 클래스라 '진짜' 새로고침에서는 있을 수가 없다 —
+     즉 이 값이 남아 있다면 웹뷰 프로세스가 앱 업데이트 사이에도 안 죽고 그대로 이어졌고,
+     그 전 화면에서 오버레이를 닫다가(혹은 달력을 접다가) 잠금 해제가 씹혔다는 뜻이다.
+     원인을 아직 못 잡았어도, 시작할 때 한 번 강제로 풀어두면 최소한 매번 막히지는 않는다. */
+  try {
+    document.body.classList.remove('modal-open', 'cal-lock');
+    document.body.style.top = '';
+  } catch (e) {}
   try { if (screen.orientation && screen.orientation.lock) screen.orientation.lock('portrait').catch(function () {}); } catch (e) {}
   if (UI.applyDisplay) UI.applyDisplay();
 

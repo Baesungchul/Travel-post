@@ -19,8 +19,8 @@
 
   var Cal = window.Cal = {};
   var _y, _m, _sel = null, _host = null;
-  /* 장소별 '이미 쓴 글' 묶음 — collect() 가 채우고, 달력 칸·목록·상세 배지가 함께 읽는다
-     (사용자 요청 2026-09-02: 달력에 글 작성 여부 표시). */
+  /* 장소별 '이미 쓴 글' 묶음 — collect() 가 채우고, 목록·상세의 채널 아이콘(chIconsOf)이 읽는다
+     (사용자 요청 2026-09-02: 이름 옆에 어느 채널에 썼는지 표시). */
   var _postsByPlace = {};
 
   /* ── 펼치기(확대) 상태 ────────────────────────────────────
@@ -92,8 +92,8 @@
       var byDate = {};
       function slot(d) { return (byDate[d] = byDate[d] || { places: [], plans: [], trips: [] }); }
 
-      /* 장소별로 쓴 글을 묶어 둔다 — 칸·목록·상세에서 '✍️ 글' 표시를 하고
-         눌러서 바로 그 글을 열기 위해서다 (사용자 요청 2026-09-02).
+      /* 장소별로 쓴 글을 묶어 둔다 — 목록·상세에서 이름 옆에 '어느 채널에 썼는지' 아이콘을
+         보여주고, 눌러서 바로 그 글을 열기 위해서다 (사용자 요청 2026-09-02).
          postAll() 이 최신순 정렬이라 [0]이 가장 최근 글이다. */
       _postsByPlace = {};
       (r[3] || []).forEach(function (o) {
@@ -102,10 +102,7 @@
 
       r[0].forEach(function (p) {
         var d = String(p.visitedAt || '').slice(0, 10);
-        if (d >= from && d <= to) {
-          p._postCount = (_postsByPlace[p.id] || []).length;
-          slot(d).places.push(p);
-        }
+        if (d >= from && d <= to) slot(d).places.push(p);
       });
       r[1].forEach(function (pl) {
         if (pl.date >= from && pl.date <= to) slot(pl.date).plans.push(pl);
@@ -135,14 +132,16 @@
     if (key === _sel) cls += ' sel';
     if (dow === 0 || hol) cls += ' sun'; else if (dow === 6) cls += ' sat';
 
-    var postN = s.places.reduce(function (n, p) { return n + (p._postCount || 0); }, 0);
+    /* ⚠️ 2026-09-02 사용자 지적: '글' 을 기록과 별개의 점/아이콘으로 더했더니
+       장소 하나(대상 하나)에 점이 두 개(기록+글) 찍혀 오히려 헷갈렸다.
+       → 작은(접힌) 달력·펼친 격자는 원래대로 여행/일정/기록 세 가지만 표시하고,
+          '어느 채널에 글을 썼는지'는 이름이 보이는 목록·상세에서만(아래 agendaHTML·renderDay) 보여준다. */
     var inner;
     if (expandedGrid) {
       var ic = '';
       if (s.trips.length)  ic += '<b class="ci trip">🧳</b>';
       if (s.plans.length)  ic += '<b class="ci plan">📌' + (s.plans.length > 1 ? s.plans.length : '') + '</b>';
       if (s.places.length) ic += '<b class="ci place">📷' + (s.places.length > 1 ? s.places.length : '') + '</b>';
-      if (postN)            ic += '<b class="ci post">✍️' + (postN > 1 ? postN : '') + '</b>';
       inner = '<span class="n">' + d + '</span>' +
               (hol ? '<span class="hol">' + esc(hol.slice(0, 4)) + '</span>' : '') +
               '<span class="cal-icos">' + ic + '</span>';
@@ -151,7 +150,6 @@
       if (s.trips.length) marks += '<i class="m-trip"></i>';
       if (s.plans.length) marks += '<i class="m-plan"></i>';
       if (s.places.length) marks += '<i class="m-place"></i>';
-      if (postN) marks += '<i class="m-post"></i>';
       inner = '<span class="n">' + d + '</span>' +
               (hol ? '<span class="hol">' + esc(hol.slice(0, 4)) + '</span>' : '') +
               '<span class="marks">' + marks + '</span>';
@@ -208,12 +206,10 @@
       });
       s.places.forEach(function (p) {
         var snap = p.profileSnap || {};
-        var postN = p._postCount || 0;
         rows += '<div class="ag-row calPlace" data-id="' + p.id + '"><span class="ag-ic">' +
                 esc(snap.icon || '📷') + '</span>' +
                 '<span class="ag-tx">' + esc(p.name || '(이름 없음)') + '</span>' +
-                (postN ? '<button type="button" class="postBadge" data-pid="' + p.id +
-                  '" title="눌러서 쓴 글 열기">✍️' + (postN > 1 ? ' ' + postN : '') + '</button>' : '') +
+                chIconsOf(p.id) +
                 '<span class="ag-rt">사진 ' + (p.photos || []).length + '</span></div>';
       });
 
@@ -281,8 +277,7 @@
           '<span class="cal-grab-tx">' + (_expanded ? '⬆️ 위로 밀어 접기' : '⬇️ 아래로 당겨 크게 보기') + '</span>' +
         '</div>' +
         '<div class="cal-legend"><span><i class="m-trip"></i> 여행</span>' +
-          '<span><i class="m-plan"></i> 일정</span><span><i class="m-place"></i> 기록</span>' +
-          '<span><i class="m-post"></i> 글</span></div>' +
+          '<span><i class="m-plan"></i> 일정</span><span><i class="m-place"></i> 기록</span></div>' +
         '<div id="calDay"></div>';
 
       _host.querySelector('#calPrev').onclick = function () { move(-1); };
@@ -348,15 +343,30 @@
     });
   }
 
-  /* ✍️ '이미 쓴 글' 배지 — 글이 하나면 바로 그 글을 열고, 여러 개면 장소 시트에서 고른다.
+  /* 이름 옆에 보여줄 '어느 채널에 썼는지' 아이콘들 — 목록·상세에서만 쓴다(칸에는 자리가 없다).
+     채널별로 하나씩만 보여준다 — 같은 채널에 여러 편을 써도 아이콘이 여러 개 늘어서지 않게
+     (사용자 요청 2026-09-02: 대상 하나에 표시가 여럿이면 헷갈린다). */
+  function chIconsOf(pid) {
+    var posts = _postsByPlace[pid] || [];
+    if (!posts.length) return '';
+    var seen = {}, chs = [];
+    posts.forEach(function (o) { if (!seen[o.ch]) { seen[o.ch] = true; chs.push(o.ch); } });
+    return '<span class="chIcons">' + chs.map(function (ch) {
+      return '<button type="button" class="chIconBtn" data-pid="' + pid + '" data-ch="' + ch +
+        '" title="' + esc(ClaudeAI.channel(ch).label) + ' 글 열기">' + ClaudeAI.channelIcon(ch, 15) + '</button>';
+    }).join('') + '</span>';
+  }
+
+  /* ✍️ 채널 아이콘 — 눌러서 그 채널로 쓴 글을 연다. 같은 채널 글이 여러 편이면 장소 시트에서 고른다.
      행 클릭(장소 열기)으로 이어지지 않도록 막는다 (기록 탭 목록과 같은 동작, 사용자 요청 2026-09-02). */
   function bindPostBadges(root) {
-    root.querySelectorAll('.postBadge[data-pid]').forEach(function (b) {
+    root.querySelectorAll('.chIconBtn[data-pid]').forEach(function (b) {
       b.onclick = function (e) {
         e.stopPropagation();
         if (_swipedJustNow()) return;
         var pid = b.getAttribute('data-pid');
-        var posts = _postsByPlace[pid] || [];
+        var ch = b.getAttribute('data-ch');
+        var posts = (_postsByPlace[pid] || []).filter(function (o) { return o.ch === ch; });
         if (!posts.length) return;
         if (posts.length === 1) {
           Store.placeGet(pid).then(function (p) { if (p) UI.openWriter(p, posts[0]); });
@@ -647,13 +657,11 @@
     var htmlPlaces = s.places.length
       ? '<div class="lbl">다녀온 곳</div>' + s.places.map(function (p) {
           var snap = p.profileSnap || {};
-          var postN = p._postCount || 0;
           return '<div class="row calPlace" data-id="' + p.id + '">' +
             '<div style="font-size:20px;width:28px;text-align:center;">' + esc(snap.icon || '📍') + '</div>' +
             '<div style="min-width:0;"><div class="ti">' + esc(p.name || '(이름 없음)') + '</div>' +
             '<div class="sb">사진 ' + (p.photos || []).length + '장</div></div>' +
-            (postN ? '<button type="button" class="postBadge" data-pid="' + p.id +
-              '" title="눌러서 쓴 글 열기">✍️' + (postN > 1 ? ' ' + postN : '') + '</button>' : '') +
+            chIconsOf(p.id) +
             '<div class="rt">›</div></div>';
         }).join('')
       : '';

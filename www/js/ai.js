@@ -105,6 +105,44 @@
   AI.readyChannels = function () { return READY_KEYS.slice(); };
   AI.channel = function (id) { return CHANNELS[id] || CHANNELS.naver; };
 
+  /* ── 채널 대표 아이콘 (사용자 요청 2026-09-02) ─────────────────
+     이모지(📝📸✍️🧵)는 기기·OS마다 모양이 달라 브랜드로 안 읽힌다 —
+     현장매니저에서 이미 겪고 고친 문제라 그 해결책(인라인 SVG)을 그대로 옮긴다.
+     naver·insta 는 현장매니저 ai.js 의 SVG 를 그대로 가져왔다(같은 서비스, 같은 그림).
+     tistory·threads 는 현장매니저에 없던 채널이라 같은 화풍(24x24, 둥근 배경 + 흰 글자)으로 새로 그렸다 —
+     둘 다 '두 서비스를 한 채널로 묶은' 라벨(티스토리·브런치 / 스레드·X)이라 앞쪽 서비스 하나만 그린다. */
+  var CH_SVG = {
+    naver: '<rect width="24" height="24" rx="6.5" fill="#03C75A"/>'
+         + '<path d="M7.6 5.4v13.2" stroke="#fff" stroke-width="2.7" stroke-linecap="round"/>'
+         + '<circle cx="12.1" cy="14.4" r="3.7" fill="none" stroke="#fff" stroke-width="2.7"/>'
+         + '<path d="M18.9 9.9v8.7" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/>',
+    insta: '<defs><linearGradient id="tpIg" x1="0" y1="1" x2="1" y2="0">'
+         + '<stop offset="0" stop-color="#FEDA75"/><stop offset=".35" stop-color="#FA7E1E"/>'
+         + '<stop offset=".6" stop-color="#D62976"/><stop offset=".85" stop-color="#962FBF"/>'
+         + '<stop offset="1" stop-color="#4F5BD5"/></linearGradient></defs>'
+         + '<rect width="24" height="24" rx="6.5" fill="url(#tpIg)"/>'
+         + '<rect x="5" y="5" width="14" height="14" rx="4.3" fill="none" stroke="#fff" stroke-width="1.9"/>'
+         + '<circle cx="12" cy="12" r="3.5" fill="none" stroke="#fff" stroke-width="1.9"/>'
+         + '<circle cx="16.4" cy="7.6" r="1.15" fill="#fff"/>',
+    tistory: '<rect width="24" height="24" rx="6.5" fill="#FF5544"/>'
+           + '<rect x="5" y="6" width="14" height="3" rx="1" fill="#fff"/>'
+           + '<rect x="10.5" y="6" width="3" height="12" rx="1" fill="#fff"/>',
+    threads: '<rect width="24" height="24" rx="6.5" fill="#000"/>'
+           + '<path d="M6.3 6.3L17.7 17.7M17.7 6.3L6.3 17.7" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/>'
+  };
+  // chId 의 아이콘 HTML — SVG 가 있으면 SVG, 없으면 기존 이모지
+  function chIcon(chId, size) {
+    var sv = CH_SVG[chId];
+    var px = size || 16;
+    if (sv) {
+      return '<svg viewBox="0 0 24 24" width="' + px + '" height="' + px + '" ' +
+             'style="vertical-align:-.16em;flex:none;" aria-hidden="true">' + sv + '</svg>';
+    }
+    var m = CHANNELS[chId] || CHANNELS.naver;
+    return '<span style="font-size:' + px + 'px;">' + (m && m.icon ? m.icon : '') + '</span>';
+  }
+  AI.channelIcon = chIcon;
+
   /* ☠️ 키 일치 자가검사 — 현장매니저의 'fb' vs 'facebook' 사고 재발 방지.
      다른 모듈이 자기 채널 표를 들고 있으면 여기에 등록해서 검사받게 한다. */
   var _registered = [];
