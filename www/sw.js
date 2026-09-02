@@ -1,6 +1,6 @@
 /* sw.js — 앱 껍데기 캐시.
    ⚠️ 파일을 추가하면 SHELL 에도 넣고 VER 을 올릴 것. */
-var VER = 'tp-v9';
+var VER = 'tp-v10';
 var SHELL = [
   './', './index.html', './styles.css', './manifest.json', './icon.svg', './icon-maskable.svg',
   './js/vendor/firebase-app-compat.js', './js/vendor/firebase-auth-compat.js',
