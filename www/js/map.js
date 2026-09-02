@@ -50,22 +50,25 @@
         '지도를 켜려면 js/config.js 의 KAKAO_JS_KEY 가 필요합니다(REST 키와 다른 값이고, 도메인 등록도 해야 합니다).');
       return;
     }
-    if (!withGeo.length) {
-      container.innerHTML = '<div class="empty">좌표가 있는 기록이 아직 없어요.<br>' +
-        '<span class="mini">촬영할 때 위치를 잡으면 여기에 찍힙니다.</span></div>';
-      return;
-    }
+    /* ⚠️ 2026-09-02 사용자 요청: 좌표 있는 기록이 하나도 없어도 지도는 띄운다 —
+       "등록 안 되어 있는 곳도 길게 눌러 입력"하려면 빈 지도라도 길게 누를 대상이 있어야 한다.
+       예전엔 여기서 '기록 없음' 안내로 막아 버려, 첫 핀조차 지도로는 못 찍었다. */
+    var here = (window.Geo && Geo.last && Geo.last()) || null;
+    var DEFAULT_CENTER = { lat: 37.5665, lng: 126.9780 };   // 좌표를 하나도 못 구했을 때만 쓰는 기본값(서울)
 
     container.innerHTML = '<div class="mapbox" id="mapBox"></div>' +
-      '<div class="mini" style="margin-top:6px;">지도에 ' + withGeo.length + '곳' +
-      (noGeo ? ' · 좌표 없는 기록 ' + noGeo + '곳은 목록에만 있어요' : '') + '</div>';
+      '<div class="mini" style="margin-top:6px;">' +
+      (withGeo.length ? ('지도에 ' + withGeo.length + '곳' +
+        (noGeo ? ' · 좌표 없는 기록 ' + noGeo + '곳은 목록에만 있어요' : ''))
+        : '아직 지도에 찍힌 기록이 없어요') +
+      ' · 빈 자리를 길게 누르면 그 자리에 새 기록을 시작해요</div>';
 
     loadSdk().then(function () {
       var box = container.querySelector('#mapBox');
-      var first = withGeo[0].geo;
+      var first = withGeo.length ? withGeo[0].geo : (here || DEFAULT_CENTER);
       var map = new kakao.maps.Map(box, {
         center: new kakao.maps.LatLng(first.lat, first.lng),
-        level: 7
+        level: withGeo.length ? 7 : 5
       });
       var bounds = new kakao.maps.LatLngBounds();
       withGeo.forEach(function (p) {
@@ -84,8 +87,70 @@
         });
       });
       if (withGeo.length > 1) map.setBounds(bounds);
+      attachLongPress(map, box);
     }).catch(function (e) {
-      fallback(container, places, onPick, e.message);
+      if (withGeo.length) fallback(container, places, onPick, e.message);
+      else container.innerHTML = '<div class="notice">🗺 ' + esc(e.message) + '</div>';
+    });
+  }
+
+  /* ── 길게 눌러 새 기록 추가 ──
+     사용자 요청(2026-09-02): "지도에 등록 안되어 있는곳도 지도에서 길게눌러서 입력할수 있게 해줘.
+     길게누르면 해당 주소가 들어가게 하고 상호는 비워두는 걸로 해줘."
+     ⚠️ 카카오 지도 SDK 는 pixel→좌표 변환 API 를 직접 쓰지 않는다 — 공식 예제 그대로
+        map 의 'click' 이벤트가 주는 mouseEvent.latLng 를 쓴다. 대신 '길게 눌렀는지'는
+        우리가 직접 터치 시작 시각·이동 거리로 판정하고, click(=touchend 뒤에 온다) 시점에
+        그 판정 결과를 확인한다 — 짧게 누르거나 지도를 끈 경우와 구분하기 위해서다.
+     ⚠️ 마커를 누르면 마커 자체의 click 이 처리하고 지도(map)의 click 은 따로 안 뜬다
+        (지도 SDK 공통 동작) — 그래서 기존 마커 위에서는 이 롱프레스가 안 걸린다. */
+  function attachLongPress(map, box) {
+    var LP_MS = 500, MOVE_TOL = 14;
+    var st = 0, sx = 0, sy = 0, moved = false;
+    function start(x, y) { st = Date.now(); sx = x; sy = y; moved = false; }
+    function move(x, y) { if (Math.abs(x - sx) > MOVE_TOL || Math.abs(y - sy) > MOVE_TOL) moved = true; }
+
+    box.addEventListener('touchstart', function (e) {
+      var t = e.touches && e.touches[0]; if (t) start(t.clientX, t.clientY);
+    }, { passive: true });
+    box.addEventListener('touchmove', function (e) {
+      var t = e.touches && e.touches[0]; if (t) move(t.clientX, t.clientY);
+    }, { passive: true });
+    box.addEventListener('mousedown', function (e) { start(e.clientX, e.clientY); });
+    box.addEventListener('mousemove', function (e) { if (e.buttons) move(e.clientX, e.clientY); });
+    /* 안드로이드 WebView 기본 '길게 눌러 선택/저장' 메뉴가 뜨면 우리 손짓을 가로챈다 */
+    box.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+
+    kakao.maps.event.addListener(map, 'click', function (mouseEvent) {
+      var held = st ? (Date.now() - st) : 0;
+      var wasLong = st && !moved && held >= LP_MS;
+      st = 0;
+      if (wasLong) addPlaceHere(mouseEvent.latLng);
+    });
+  }
+
+  function addPlaceHere(latlng) {
+    var pf = window.Profiles && Profiles.current();
+    if (!pf) { if (window.UI && UI.openCategoryPicker) UI.openCategoryPicker(); return; }
+    var geo = { lat: latlng.getLat(), lng: latlng.getLng() };
+    var wantAddr = !!(window.Geo && Geo.available());
+    if (window.showOverlay) showOverlay('주소를 찾는 중...');
+    (wantAddr ? Geo.reverse(geo) : Promise.resolve('')).then(function (addr) {
+      if (window.hideOverlay) hideOverlay();
+      Place.create(pf.id);
+      var p = Place.current();
+      p.geo = geo;
+      p.address = addr || '';
+      p.area = addr ? Categories.areaOf(addr) : '';
+      return Place.save().then(function () {
+        showToast(catFill('여기에 새 {장소호칭}를 시작했어요', pf) + (addr ? ' — ' + addr : ' (주소를 못 찾았어요, 손으로 적어주세요)'), 'ok');
+        if (window.UI && UI.switchTab) UI.switchTab('now');
+      });
+    }).catch(function () {
+      if (window.hideOverlay) hideOverlay();
+      showToast('주소를 찾지 못했어요 — 위치만 저장했어요. 손으로 적어주세요.', 'err');
+      Place.create(pf.id);
+      Place.current().geo = geo;
+      Place.save().then(function () { if (window.UI && UI.switchTab) UI.switchTab('now'); });
     });
   }
 

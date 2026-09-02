@@ -263,7 +263,10 @@ textarea.inp{ resize:vertical; min-height:78px; line-height:1.6; }
 
 /* 지도 */
 .mapbox{ width:100%; height:58vh; min-height:300px; border-radius:12px; overflow:hidden;
-         background:var(--sf3); border:1px solid var(--bd); }
+         background:var(--sf3); border:1px solid var(--bd);
+         /* 길게 눌러 새 기록 추가(사용자 요청 2026-09-02) — 안드로이드 기본 길게 누르기(선택·말풍선 메뉴)가
+            먼저 끼어들면 우리 롱프레스가 안 잡힌다. 지도에서는 그 기본 동작이 필요 없으니 꺼 둔다. */
+         -webkit-touch-callout:none; -webkit-user-select:none; user-select:none; }
 .view-toggle{ display:flex; gap:6px; margin-bottom:10px; }
 .view-toggle .tag{ flex:1; text-align:center; }
 
