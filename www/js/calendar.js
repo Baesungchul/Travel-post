@@ -208,7 +208,7 @@
         var snap = p.profileSnap || {};
         rows += '<div class="ag-row calPlace" data-id="' + p.id + '"><span class="ag-ic">' +
                 esc(snap.icon || '📷') + '</span>' +
-                '<span class="ag-tx">' + esc(p.name || '(이름 없음)') + '</span>' +
+                '<span class="ag-tx">' + esc(placeLabel(p)) + '</span>' +
                 chIconsOf(p.id) +
                 '<span class="ag-rt">사진 ' + (p.photos || []).length + '</span></div>';
       });
@@ -659,7 +659,7 @@
           var snap = p.profileSnap || {};
           return '<div class="row calPlace" data-id="' + p.id + '">' +
             '<div style="font-size:20px;width:28px;text-align:center;">' + esc(snap.icon || '📍') + '</div>' +
-            '<div style="min-width:0;"><div class="ti">' + esc(p.name || '(이름 없음)') + '</div>' +
+            '<div style="min-width:0;"><div class="ti">' + esc(placeLabel(p)) + '</div>' +
             '<div class="sb">사진 ' + (p.photos || []).length + '장</div></div>' +
             chIconsOf(p.id) +
             '<div class="rt">›</div></div>';

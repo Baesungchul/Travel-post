@@ -73,7 +73,7 @@
           return '<div class="row plRow" data-id="' + p.id + '">' +
             '<div class="thumb">' + (first ? '<img data-ph="' + first.id + '" alt="">' : '') + '</div>' +
             '<div style="min-width:0;">' +
-              '<div class="ti">' + esc(p.name || '(이름 없음)') + '</div>' +
+              '<div class="ti">' + esc(placeLabel(p)) + '</div>' +
               '<div class="sb">' + esc((snap.icon || '📍') + ' ' + (snap.name || '')) +
                 ' · 사진 ' + (p.photos || []).length + '장' +
                 (p.area ? ' · ' + esc(p.area) : '') + '</div>' +
@@ -183,7 +183,7 @@
             ? '<div class="box">' + places.map(function (p, i) {
                 var snap = p.profileSnap || {};
                 return '<div class="row"><div style="width:22px;font-weight:800;">' + (i + 1) + '</div>' +
-                  '<div style="min-width:0;"><div class="ti">' + esc(p.name || '(이름 없음)') + '</div>' +
+                  '<div style="min-width:0;"><div class="ti">' + esc(placeLabel(p)) + '</div>' +
                   '<div class="sb">' + esc((snap.icon || '📍') + ' ' + (snap.name || '')) +
                     ' · 사진 ' + (p.photos || []).length + '장</div></div>' +
                   '<div class="rt">' +
@@ -248,7 +248,7 @@
             free.map(function (p) {
               var snap = p.profileSnap || {};
               return '<div class="row pkRow" data-id="' + p.id + '"><div>' +
-                '<div class="ti">' + esc(p.name || '(이름 없음)') + '</div>' +
+                '<div class="ti">' + esc(placeLabel(p)) + '</div>' +
                 '<div class="sb">' + esc((snap.icon || '📍') + ' ' + (snap.name || '')) + ' · ' +
                 esc(String(p.visitedAt || '').slice(0, 10)) + '</div></div></div>';
             }).join('') + '</div>'
@@ -304,7 +304,7 @@
       if (!p) return;
       var snap = p.profileSnap || {};
       var ov = overlay({
-        title: esc((snap.icon || '📍') + ' ' + (p.name || '(이름 없음)')),
+        title: esc((snap.icon || '📍') + ' ' + placeLabel(p)),
         body:
           '<div class="mini">' + esc(String(p.visitedAt || '').replace('T', ' ')) +
             (p.address ? ' · ' + esc(p.address) : '') +

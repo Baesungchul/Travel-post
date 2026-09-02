@@ -192,7 +192,7 @@
     el.innerHTML =
       '<div class="card">' +
         '<div class="sec-hd"><h2>' + esc(pf ? (pf.icon || '📍') + ' ' + pf.name : '장소') + '</h2>' +
-          '<span class="sp mini">' + esc(p.id) + '</span></div>' +
+          '<button type="button" class="btn sm danger sp" id="btnDelPlace" title="이 기록 삭제">🗑 삭제</button></div>' +
         '<label class="lbl">' + esc(catFill('{장소호칭} 이름', pf)) + '</label>' +
         '<div style="display:flex;gap:8px;">' +
           '<input class="inp" id="plName" value="' + esc(p.name) + '" placeholder="상호 또는 장소명">' +
@@ -305,6 +305,19 @@
       d.onclick = function () { openPhotoSheet(d.getAttribute('data-id')); };
     });
 
+    /* ★ 2026-09-02 사용자 요청: 「지금」 탭에서도 이 기록을 지울 수 있게 —
+       기존엔 「기록」 탭 상세 시트에만 삭제가 있었다. 동작은 그쪽과 동일
+       (Store.placeDelete 가 사진·글까지 함께 지운다). */
+    el.querySelector('#btnDelPlace').onclick = function () {
+      if (!confirm('이 기록과 사진·글을 모두 지울까요?\n되돌릴 수 없습니다.')) return;
+      var pid = p.id;
+      Store.placeDelete(pid).then(function () {
+        if (Place.current() && Place.current().id === pid) Place.clear();
+        Store.setPut('lastPlaceId', null);
+        showToast('지웠어요');
+        UI.renderNow();
+      });
+    };
     el.querySelector('#plFind').onclick = UI.openPlaceFinder;
     el.querySelector('#btnCam').onclick = function () { openInAppCamera(_curTagFilter || tags[0]); };
     el.querySelector('#btnPick').onclick = function () {

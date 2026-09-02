@@ -387,7 +387,7 @@
     places.forEach(function (p, i) {
       var snap = p.profileSnap || {};
       var cnt = Photos.countByTag(p);
-      L.push((i + 1) + ') ' + (p.name || '(이름 없음)'));
+      L.push((i + 1) + ') ' + placeLabel(p));
       L.push('   카테고리: ' + (snap.name || '장소'));
       if (p.area) L.push('   지역: ' + p.area);
       if (p.visitedAt) L.push('   방문: ' + String(p.visitedAt).replace('T', ' '));
@@ -451,7 +451,7 @@
     L.push('');
     places.forEach(function (p, i) {
       var snap = p.profileSnap || {};
-      L.push('■ ' + (i + 1) + '. ' + (p.name || '(이름 없음)') + ' (' + (snap.name || '장소') + ')');
+      L.push('■ ' + (i + 1) + '. ' + placeLabel(p) + ' (' + (snap.name || '장소') + ')');
       if (p.memo) L.push(p.memo);
       Place.tags(p).forEach(function (t) {
         var has = (p.photos || []).some(function (x) { return x.tag === t; });

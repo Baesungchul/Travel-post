@@ -180,7 +180,7 @@
         return '<div class="row postRow" data-id="' + o.id + '">' +
           '<div style="width:32px;text-align:center;">' + ClaudeAI.channelIcon(o.ch, 22) + '</div>' +
           '<div style="min-width:0;"><div class="ti">' + esc(head.slice(0, 30)) + '</div>' +
-          '<div class="sb">' + esc(ch.label) + ' · ' + esc(pl.name || '이름 없음') +
+          '<div class="sb">' + esc(ch.label) + ' · ' + esc(placeLabel(pl)) +
             (o.published ? '<span class="badge">발행</span>' : '') + '</div></div>' +
           '<div class="rt">' + new Date(o.createdAt).toLocaleDateString('ko-KR') + '</div></div>';
       }).join('') + '</div>';
@@ -211,7 +211,7 @@
     var ov = overlay({
       title: ClaudeAI.channelIcon(post.ch, 18) + ' ' + esc(ch.label),
       body:
-        '<div class="mini">' + esc((place && place.name) || '이름 없음') + ' · ' +
+        '<div class="mini">' + esc(placeLabel(place)) + ' · ' +
           new Date(post.createdAt).toLocaleString('ko-KR') + '</div>' +
         '<textarea class="post-ta" id="poText">' + esc(post.text) + '</textarea>' +
         '<label class="chk" style="margin-top:8px;"><input type="checkbox" id="poPub"' +

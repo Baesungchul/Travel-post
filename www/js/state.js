@@ -144,6 +144,22 @@
   }
   window.esc = esc;
 
+  /* ── 장소 표시 이름 ──
+     이름을 안 적고 사진만 찍어 놔도(빈 장소는 아니라 저장은 됨) 목록·달력·지도에
+     '(이름 없음)' 처럼 빈 자리로 보이지 않게, 주소나 방문 날짜로 대신 보여준다.
+     ⚠️ p.name 자체는 건드리지 않는다 — 「지금」 탭을 다시 열면 여전히 빈칸이라
+        사용자가 실제로 이름을 적을 때까지 '가짜 이름'으로 덮이지 않는다.
+     (사용자 요청 2026-09-02: "기록에 (이름없음)이 저장되지 않도록") */
+  function placeLabel(p) {
+    if (!p) return '';
+    if (p.name && String(p.name).trim()) return p.name;
+    if (p.address && String(p.address).trim()) return p.address;
+    var d = p.visitedAt ? new Date(p.visitedAt) : null;
+    if (d && !isNaN(d.getTime())) return (d.getMonth() + 1) + '월 ' + d.getDate() + '일 기록';
+    return '새 기록';
+  }
+  window.placeLabel = placeLabel;
+
   function copyText(t) {
     try { if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(t); return true; } } catch (e) {}
     try {

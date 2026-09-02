@@ -71,10 +71,12 @@
       withGeo.forEach(function (p) {
         var pos = new kakao.maps.LatLng(p.geo.lat, p.geo.lng);
         bounds.extend(pos);
-        var mk = new kakao.maps.Marker({ map: map, position: pos, title: p.name || '' });
+        var mk = new kakao.maps.Marker({ map: map, position: pos, title: placeLabel(p) });
+        /* ★ 2026-09-02 사용자 지적: 라벨 글씨가 안 보임 — 배경 없이(카카오 기본 말풍선만)
+           검정 글씨로 명시해서, 앱 전체 글자색(다크 테마 등)을 물려받지 않게 고정한다. */
         var iw = new kakao.maps.InfoWindow({
-          content: '<div style="padding:6px 10px;font-size:12px;white-space:nowrap;">' +
-                   esc(p.name || '(이름 없음)') + '</div>'
+          content: '<div style="padding:6px 10px;font-size:12px;white-space:nowrap;' +
+                   'background:none;color:#000;">' + esc(placeLabel(p)) + '</div>'
         });
         kakao.maps.event.addListener(mk, 'click', function () {
           iw.open(map, mk);
@@ -112,7 +114,7 @@
           list.map(function (p) {
             var d = distM(here, p.geo);
             return '<div class="row mapRow" data-id="' + p.id + '">' +
-              '<div><div class="ti">' + esc(p.name || '(이름 없음)') + '</div>' +
+              '<div><div class="ti">' + esc(placeLabel(p)) + '</div>' +
               '<div class="sb">' + esc(String(p.visitedAt || '').slice(0, 10)) +
                 (p.address ? ' · ' + esc(p.address) : '') + '</div></div>' +
               '<div class="rt">' + (d == null ? '' : (d < 1000 ? d + 'm' : (d / 1000).toFixed(1) + 'km')) + '</div></div>';
@@ -180,8 +182,8 @@
         bounds.extend(pos);
         var mk = new kakao.maps.Marker({ map: map, position: pos, title: d.name || '' });
         var iw = new kakao.maps.InfoWindow({
-          content: '<div style="padding:6px 10px;font-size:12px;white-space:nowrap;">' +
-                   esc(d.name || '') + '</div>'
+          content: '<div style="padding:6px 10px;font-size:12px;white-space:nowrap;' +
+                   'background:none;color:#000;">' + esc(d.name || '') + '</div>'
         });
         kakao.maps.event.addListener(mk, 'click', function () {
           iw.open(map, mk);
