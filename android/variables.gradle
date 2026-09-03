@@ -1,16 +1,24 @@
+/* ⭐ 2026-09-03: Capacitor 6 → 8 업그레이드.
+   Play Console 두 오류(targetSdk 34→36 필수, Play Billing Library 7.1.1→8.0.0+ 필수)를
+   해결하려고 올렸다 — RevenueCat 플러그인의 최신 버전(Billing 8.x 포함)이 Capacitor 8을
+   요구해서 Capacitor 자체를 올려야 했다. capacitorjs.com/docs/updating/8-0 의 안드로이드
+   섹션 값을 그대로 따랐다.
+   ⚠️ minSdkVersion 22→24 (Android 7.0 미만 기기는 이제 설치 불가 — 2026년 기준 사실상
+      영향 없는 구형 기기들). */
 ext {
-    minSdkVersion = 22
-    compileSdkVersion = 34
-    targetSdkVersion = 34
-    androidxActivityVersion = '1.8.0'
-    androidxAppCompatVersion = '1.6.1'
-    androidxCoordinatorLayoutVersion = '1.2.0'
-    androidxCoreVersion = '1.12.0'
-    androidxFragmentVersion = '1.6.2'
-    coreSplashScreenVersion = '1.0.1'
-    androidxWebkitVersion = '1.9.0'
+    minSdkVersion = 24
+    compileSdkVersion = 36
+    targetSdkVersion = 36
+    androidxActivityVersion = '1.11.0'
+    androidxAppCompatVersion = '1.7.1'
+    androidxCoordinatorLayoutVersion = '1.3.0'
+    androidxCoreVersion = '1.17.0'
+    androidxFragmentVersion = '1.8.9'
+    coreSplashScreenVersion = '1.2.0'
+    androidxWebkitVersion = '1.14.0'
     junitVersion = '4.13.2'
-    androidxJunitVersion = '1.1.5'
-    androidxEspressoCoreVersion = '3.5.1'
-    cordovaAndroidVersion = '10.1.1'
+    androidxJunitVersion = '1.3.0'
+    androidxEspressoCoreVersion = '3.7.0'
+    cordovaAndroidVersion = '14.0.1'
+    kotlin_version = '2.2.20'
 }

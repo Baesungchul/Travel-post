@@ -38,7 +38,7 @@ jobs:
         uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
-          java-version: '17'
+          java-version: '21'
 
       - name: 비밀 키 주입 (카카오 REST 키)
         env:
