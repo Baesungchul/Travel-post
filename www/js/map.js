@@ -98,58 +98,31 @@
      사용자 요청(2026-09-02): "지도에 등록 안되어 있는곳도 지도에서 길게눌러서 입력할수 있게 해줘.
      길게누르면 해당 주소가 들어가게 하고 상호는 비워두는 걸로 해줘."
 
-     ★ 2026-09-03 사용자 지적 ①: "지도에서 길게 눌러서 등록도 안돼" — 실기기에서 동작 안 함.
-        처음 버전은 지도의 'click' 이벤트(=터치를 뗀 뒤 브라우저가 만들어 주는 합성 클릭)를 기다렸다가
-        그 시점에 '길게 눌렀었는지'를 판정했다. 그런데 모바일에서는 손가락을 오래 붙이고 있다가 떼면
-        (특히 500ms 넘게 가만히 누르고 있으면) 브라우저·웹뷰가 그걸 '길게 누르기' 제스처로 보고
-        click 을 아예 안 만들어 주는 경우가 흔하다 — 그러면 판정 코드 자체가 실행되지 않는다.
-        → click 을 기다리지 않고, 누르고 있는 동안 타이머로 직접 LP_MS 가 지나면 그 순간 바로 실행한다
-          (뗄 때까지 기다리지 않는다 — 안드로이드 길게 누르기와 같은 느낌).
-        → 좌표는 카카오 지원팀이 안내한 공식 방법인 map.coordsFromContainerPoint() 로 구한다
-          (devtalk.kakao.com 문의 답변 — 사용자 입력 좌표 변환에는 이 메서드를 쓰라고 안내함).
-
-     ★ 2026-09-03 사용자 지적 ②: 위 수정을 넣은 뒤에도 "여전히 안 된다" — 진짜 원인은 따로 있었다.
-        카카오 지도 SDK 는 지도를 그릴 때 box(#mapBox) **안쪽에 자기 타일·마커용 div 를 더 만들고
-        그 안쪽 엘리먼트에** 자체 터치 리스너(드래그로 지도 움직이기 등)를 건다. 우리 리스너는
-        box(바깥 엘리먼트)에 **버블 단계**로 달려 있었는데, 안쪽 리스너가 지도를 움직이려고
-        stopPropagation() 을 부르면 이벤트가 box 까지 올라오지도 못한다 — 그러면 우리 touchstart 는
-        아예 실행되지 않고, 타이머도 시작이 안 되니 아무리 오래 눌러도 반응이 없다.
-        → 캡처 단계(capture: true)로 등록하면 이벤트가 안쪽(target)까지 내려가기 **전에** 바깥쪽인
-          box 를 먼저 지나가면서 우리 리스너부터 실행된다 — 안쪽에서 나중에 stopPropagation 을
-          불러도 이미 실행된 우리 코드에는 영향이 없다. DOM 이벤트 캡처 단계의 기본 동작이라
-          카카오 SDK 내부 구현이 어떻든 항상 성립한다.
+     실기기 디버깅 끝에 확정된 구현 요점 (2026-09-03, 실기기 왕복 확인까지 마침):
+     · click 이벤트가 아니라 누르고 있는 동안 타이머로 직접 판정한다 — 모바일에서는
+       500ms 넘게 가만히 누르고 있다 떼면 브라우저가 합성 click 을 아예 안 만들어 주는
+       경우가 흔해서, click 을 기다리는 방식은 실기기에서 아예 반응하지 않았다.
+     · 리스너는 반드시 캡처 단계(capture:true)로 단다 — 카카오 지도 SDK 가 box 안쪽에
+       만드는 타일/마커용 엘리먼트가 자기 드래그 처리를 위해 stopPropagation 을 부르면,
+       버블 단계로 단 바깥쪽 리스너는 이벤트를 아예 못 받는다. 캡처 단계는 이벤트가
+       안쪽까지 내려가기 전에 먼저 실행되므로 그 영향을 받지 않는다.
+     · 움직임 허용치(MOVE_TOL)는 넉넉하게 둔다 — 실제 손가락은 가만히 있어도 접촉면이
+       미세하게 흔들려서, 마우스 기준으로 잡은 좁은 허용치는 정상적인 롱프레스도
+       '움직였다'고 오판해 조용히 취소해버렸다.
+     · 좌표 변환은 map.getProjection().coordsFromContainerPoint() 로 한다 — 이 메서드는
+       Map 객체가 아니라 Map 의 Projection 객체에 있다(카카오 공식 문서 예제 그대로).
+       map 에 바로 호출하면 "not a function" 으로 조용히 실패한다.
      ⚠️ 마커를 누르면 마커 자체가 이벤트를 먹어서, 마커 위에서는 이 롱프레스가 안 걸린다(지도 SDK 공통 동작). */
   function attachLongPress(map, box) {
-    /* ★ 2026-09-03 사용자 확인: 진단 토스트("지도 터치 인식됨")는 뜬다 — 캡처 리스너는
-       정상적으로 걸려 있다. 그런데도 "장소 인식은 안 된다"고 하니, 문제는 그 다음 단계
-       (0.5초를 채우기 전에 손끝이 조금 움직였다고 우리가 스스로 취소해버리는 것) 로 좁혀진다.
-       실제 손가락은 마우스 포인터와 달리 가만히 있어도 접촉면이 미세하게 흔들려서 14px
-       허용치를 쉽게 넘는다 — 그러면 원이 다 자라기도 전에 조용히 취소되고, 사용자 눈엔
-       "그냥 반응이 없다"로 보인다. 허용치를 넉넉히 늘리고(진짜 지도 드래그는 이보다 훨씬 많이
-       움직인다), 타이머가 끝나는 순간·움직임으로 취소되는 순간에도 진단 토스트를 하나씩 더
-       띄워서 이번에도 안 되면 정확히 어느 단계인지 바로 알 수 있게 한다. */
     var LP_MS = 550, MOVE_TOL = 32;
     var sx = 0, sy = 0, cx = 0, cy = 0, moved = false, timer = null, ripple = null;
-    var CAP = { capture: true, passive: true };   /* 캡처 단계 + 스크롤 막지 않음 */
+    var CAP = { capture: true, passive: true };   /* 캡처 단계 + 스크롤 막지 않음 — 위 설명 참고 */
 
-    var debugShown = false;
-    function debugPing() {
-      if (debugShown) return;
-      debugShown = true;
-      try { if (window.showToast) showToast('🔧 지도 터치 인식됨(진단용)', 'ok'); } catch (e) {}
-    }
-
-    /* ★ 2026-09-03 실기기 오류로 확정된 진짜 원인: "map.coordsFromContainerPoint is not
-       a function". coordsFromContainerPoint 는 Map 객체가 아니라 Map 의 Projection
-       객체(map.getProjection() 으로 얻는다)에 있는 메서드다 — 카카오 공식 문서 예제도
-       "var mapProjection = map.getProjection(); mapProjection.coordsFromContainerPoint(point);"
-       형태로 쓴다. map 에 바로 걸었던 게 처음부터 틀린 API 사용이었다. */
     function toLatLng(x, y) {
       var r = box.getBoundingClientRect();
       return map.getProjection().coordsFromContainerPoint(new kakao.maps.Point(x - r.left, y - r.top));
     }
-    /* 누르는 동안 손끝에 원이 자라는 걸 보여준다 — 실제로 눌림이 잡혔는지 눈으로 확인되고,
-       "반응이 없다"는 문의가 다시 오면 이 원이 뜨는지부터 확인해 원인을 좁힐 수 있다. */
+    /* 누르는 동안 손끝에 원이 자라는 걸 보여준다 — 실제로 눌림이 잡혔는지 눈으로 바로 확인된다 */
     function showRipple(x, y) {
       hideRipple();
       var r = box.getBoundingClientRect();
@@ -176,33 +149,21 @@
       timer = setTimeout(function () {
         hideRipple();
         if (moved) return;
-        try { if (window.showToast) showToast('🔧 롱프레스 인식 — 장소 만드는 중(진단용)', 'ok'); } catch (e) {}
-        /* ★ 2026-09-03: 이 토스트는 뜨는데 그 다음(주소 찾기 오버레이·새 화면 전환)이
-           전혀 안 일어난다는 확인을 받았다 — 즉 바로 다음 줄에서 조용히 멈추고 있다는
-           뜻이다. addPlaceHere() 자체가 아니라 그 인자인 toLatLng() 가 던지는 예외일
-           가능성이 가장 크다(setTimeout 콜백 안의 예외는 화면에 아무것도 안 남기고
-           콘솔에만 찍힌다) — 감싸서 진짜 오류를 토스트로 그대로 보여준다. */
         try {
           addPlaceHere(toLatLng(cx, cy));   /* 손끝이 허용치 안에서 움직였다면 마지막 위치를 쓴다 */
         } catch (err) {
-          try { if (window.showToast) showToast('🔧 좌표 변환 실패(진단용): ' + (err && err.message || err), 'err'); } catch (e2) {}
+          showToast('새 기록을 시작하지 못했어요: ' + ((err && err.message) || err), 'err');
         }
       }, LP_MS);
     }
     function move(x, y) {
       cx = x; cy = y;
       if (moved) return;
-      if (Math.abs(x - sx) > MOVE_TOL || Math.abs(y - sy) > MOVE_TOL) {
-        moved = true; clearTimeout(timer); hideRipple();
-        try { if (window.showToast) showToast('🔧 움직임으로 취소됨(진단용)', 'err'); } catch (e) {}
-      }
+      if (Math.abs(x - sx) > MOVE_TOL || Math.abs(y - sy) > MOVE_TOL) { moved = true; clearTimeout(timer); hideRipple(); }
     }
     function cancel() { clearTimeout(timer); hideRipple(); }
 
-    /* ⚠️ 반드시 캡처 단계(세 번째 인자 capture:true)로 달아야 한다 — 위 ② 설명 참고.
-       버블 단계로 달면 카카오 내부 엘리먼트가 먼저 이벤트를 가로챌 수 있다. */
     box.addEventListener('touchstart', function (e) {
-      debugPing();
       var t = e.touches && e.touches[0]; if (t) start(t.clientX, t.clientY);
     }, CAP);
     box.addEventListener('touchmove', function (e) {
@@ -210,7 +171,7 @@
     }, CAP);
     box.addEventListener('touchend', cancel, CAP);
     box.addEventListener('touchcancel', cancel, CAP);
-    box.addEventListener('mousedown', function (e) { debugPing(); start(e.clientX, e.clientY); }, { capture: true });
+    box.addEventListener('mousedown', function (e) { start(e.clientX, e.clientY); }, { capture: true });
     box.addEventListener('mousemove', function (e) { if (e.buttons) move(e.clientX, e.clientY); }, { capture: true });
     box.addEventListener('mouseup', cancel, { capture: true });
     box.addEventListener('mouseleave', cancel, { capture: true });
@@ -243,17 +204,16 @@
       });
     }).catch(function (e) {
       if (window.hideOverlay) hideOverlay();
-      try { if (window.showToast) showToast('🔧 새 기록 만들기 실패(진단용): ' + ((e && (e.message || e.code)) || e), 'err'); } catch (e2) {}
       showToast('주소를 찾지 못했어요 — 위치만 저장했어요. 손으로 적어주세요.', 'err');
       try {
         Place.create(pf.id);
         Place.current().geo = geo;
         Place.save().then(function () { if (window.UI && UI.switchTab) UI.switchTab('now'); })
           .catch(function (e3) {
-            try { if (window.showToast) showToast('🔧 저장 재시도 실패(진단용): ' + ((e3 && e3.message) || e3), 'err'); } catch (e4) {}
+            try { if (window.showToast) showToast('저장에 실패했어요: ' + ((e3 && e3.message) || e3), 'err'); } catch (e4) {}
           });
       } catch (e5) {
-        try { if (window.showToast) showToast('🔧 재시도 중 예외(진단용): ' + (e5 && e5.message || e5), 'err'); } catch (e6) {}
+        try { if (window.showToast) showToast('새 기록 저장 중 문제가 생겼어요: ' + (e5 && e5.message || e5), 'err'); } catch (e6) {}
       }
     });
   }
