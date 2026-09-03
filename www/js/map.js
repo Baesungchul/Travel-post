@@ -139,9 +139,14 @@
       try { if (window.showToast) showToast('🔧 지도 터치 인식됨(진단용)', 'ok'); } catch (e) {}
     }
 
+    /* ★ 2026-09-03 실기기 오류로 확정된 진짜 원인: "map.coordsFromContainerPoint is not
+       a function". coordsFromContainerPoint 는 Map 객체가 아니라 Map 의 Projection
+       객체(map.getProjection() 으로 얻는다)에 있는 메서드다 — 카카오 공식 문서 예제도
+       "var mapProjection = map.getProjection(); mapProjection.coordsFromContainerPoint(point);"
+       형태로 쓴다. map 에 바로 걸었던 게 처음부터 틀린 API 사용이었다. */
     function toLatLng(x, y) {
       var r = box.getBoundingClientRect();
-      return map.coordsFromContainerPoint(new kakao.maps.Point(x - r.left, y - r.top));
+      return map.getProjection().coordsFromContainerPoint(new kakao.maps.Point(x - r.left, y - r.top));
     }
     /* 누르는 동안 손끝에 원이 자라는 걸 보여준다 — 실제로 눌림이 잡혔는지 눈으로 확인되고,
        "반응이 없다"는 문의가 다시 오면 이 원이 뜨는지부터 확인해 원인을 좁힐 수 있다. */
