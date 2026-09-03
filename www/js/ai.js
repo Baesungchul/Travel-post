@@ -359,8 +359,12 @@
     return out;
   }
 
-  /* ═══ 글 생성 ═══════════════════════════════════════════ */
-  async function generatePost(chId, extraMemo, place) {
+  /* ═══ 글 생성 ═══════════════════════════════════════════
+     ⭐ 2026-09-03 사용자 요청: 광고 보고 쓰는 글은 더 싼 모델로 돌리자 — model 인자를
+        추가했다(생략하면 지금처럼 CFG.MODEL = Sonnet 5). 실제로 어느 호출이 광고형인지는
+        아직 AdMob 연동 전이라 호출부(ui_posts.js)에서 안 쓰고 있다 — subscription.js 의
+        AD_UNLOCK.postModel 참고. 광고 흐름을 붙일 때 여기 model 인자에 그 값을 넘기면 된다. */
+  async function generatePost(chId, extraMemo, place, model) {
     var ch = CHANNELS[chId] || CHANNELS.naver;
     var p = place || Place.current();
     if (!p) throw new Error('먼저 장소를 만들어 주세요');
@@ -387,7 +391,7 @@
     if (extraMemo) ask += '\n\n[추가 메모/강조점]\n' + extraMemo;
     content.push({ type: 'text', text: ask });
 
-    return await callClaude({ max_tokens: 2400, system: sys, messages: [{ role: 'user', content: content }] });
+    return await callClaude({ max_tokens: 2400, system: sys, messages: [{ role: 'user', content: content }], model: model });
   }
   AI.generatePost = generatePost;
 
@@ -434,7 +438,7 @@
     '- 사진 자리 표시는 정보에 적힌 **(사진: 상호 - 태그)** 형식을 글자 그대로 쓴다. 태그만 쓰지 마라.\n' +
     '- 전체 길이는 장소 하나짜리 글의 1.5~2배를 넘기지 않는다. 장소마다 짧게 끊는 편이 읽기 좋다.';
 
-  async function generateTripPost(chId, trip, places, extraMemo) {
+  async function generateTripPost(chId, trip, places, extraMemo, model) {
     var ch = CHANNELS[chId] || CHANNELS.naver;
     if (!places || !places.length) throw new Error('여행에 담긴 장소가 없어요');
 
@@ -459,7 +463,7 @@
     if (extraMemo) ask += '\n\n[추가 메모/강조점]\n' + extraMemo;
     content.push({ type: 'text', text: ask });
 
-    return await callClaude({ max_tokens: 3200, system: sys, messages: [{ role: 'user', content: content }] });
+    return await callClaude({ max_tokens: 3200, system: sys, messages: [{ role: 'user', content: content }], model: model });
   }
   AI.generateTripPost = generateTripPost;
   AI.tripMeta = tripMeta;
