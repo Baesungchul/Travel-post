@@ -172,7 +172,16 @@
         hideRipple();
         if (moved) return;
         try { if (window.showToast) showToast('🔧 롱프레스 인식 — 장소 만드는 중(진단용)', 'ok'); } catch (e) {}
-        addPlaceHere(toLatLng(cx, cy));   /* 손끝이 허용치 안에서 움직였다면 마지막 위치를 쓴다 */
+        /* ★ 2026-09-03: 이 토스트는 뜨는데 그 다음(주소 찾기 오버레이·새 화면 전환)이
+           전혀 안 일어난다는 확인을 받았다 — 즉 바로 다음 줄에서 조용히 멈추고 있다는
+           뜻이다. addPlaceHere() 자체가 아니라 그 인자인 toLatLng() 가 던지는 예외일
+           가능성이 가장 크다(setTimeout 콜백 안의 예외는 화면에 아무것도 안 남기고
+           콘솔에만 찍힌다) — 감싸서 진짜 오류를 토스트로 그대로 보여준다. */
+        try {
+          addPlaceHere(toLatLng(cx, cy));   /* 손끝이 허용치 안에서 움직였다면 마지막 위치를 쓴다 */
+        } catch (err) {
+          try { if (window.showToast) showToast('🔧 좌표 변환 실패(진단용): ' + (err && err.message || err), 'err'); } catch (e2) {}
+        }
       }, LP_MS);
     }
     function move(x, y) {
@@ -210,6 +219,12 @@
     var geo = { lat: latlng.getLat(), lng: latlng.getLng() };
     var wantAddr = !!(window.Geo && Geo.available());
     if (window.showOverlay) showOverlay('주소를 찾는 중...');
+    /* ★ 2026-09-03: "롱프레스 인식" 진단 토스트는 뜨는데 그 다음(주소 찾기 오버레이 →
+       새 화면 전환)이 전혀 안 일어난다는 확인을 받았다. 원래 .then() 안에서 던지는 예외는
+       promise 체인의 .catch() 가 잡지만, 그 .catch() 가 실제 오류 내용을 보여주지 않고
+       늘 같은 안내문만 띄운 뒤 Place.create 등을 **또** 동기적으로 호출했다 — 그 재시도
+       자체가 또 던지면 아무 .catch() 도 없는 채로 조용히 묻힌다. 진짜 오류를 그대로
+       보여주고, 재시도 쪽도 감싸서 어디서 멈추는지 이번엔 확실히 잡는다. */
     (wantAddr ? Geo.reverse(geo) : Promise.resolve('')).then(function (addr) {
       if (window.hideOverlay) hideOverlay();
       Place.create(pf.id);
@@ -221,12 +236,20 @@
         showToast(catFill('여기에 새 {장소호칭}를 시작했어요', pf) + (addr ? ' — ' + addr : ' (주소를 못 찾았어요, 손으로 적어주세요)'), 'ok');
         if (window.UI && UI.switchTab) UI.switchTab('now');
       });
-    }).catch(function () {
+    }).catch(function (e) {
       if (window.hideOverlay) hideOverlay();
+      try { if (window.showToast) showToast('🔧 새 기록 만들기 실패(진단용): ' + ((e && (e.message || e.code)) || e), 'err'); } catch (e2) {}
       showToast('주소를 찾지 못했어요 — 위치만 저장했어요. 손으로 적어주세요.', 'err');
-      Place.create(pf.id);
-      Place.current().geo = geo;
-      Place.save().then(function () { if (window.UI && UI.switchTab) UI.switchTab('now'); });
+      try {
+        Place.create(pf.id);
+        Place.current().geo = geo;
+        Place.save().then(function () { if (window.UI && UI.switchTab) UI.switchTab('now'); })
+          .catch(function (e3) {
+            try { if (window.showToast) showToast('🔧 저장 재시도 실패(진단용): ' + ((e3 && e3.message) || e3), 'err'); } catch (e4) {}
+          });
+      } catch (e5) {
+        try { if (window.showToast) showToast('🔧 재시도 중 예외(진단용): ' + (e5 && e5.message || e5), 'err'); } catch (e6) {}
+      }
     });
   }
 
