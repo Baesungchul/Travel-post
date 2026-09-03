@@ -97,17 +97,35 @@
   /* ── 길게 눌러 새 기록 추가 ──
      사용자 요청(2026-09-02): "지도에 등록 안되어 있는곳도 지도에서 길게눌러서 입력할수 있게 해줘.
      길게누르면 해당 주소가 들어가게 하고 상호는 비워두는 걸로 해줘."
-     ⚠️ 카카오 지도 SDK 는 pixel→좌표 변환 API 를 직접 쓰지 않는다 — 공식 예제 그대로
-        map 의 'click' 이벤트가 주는 mouseEvent.latLng 를 쓴다. 대신 '길게 눌렀는지'는
-        우리가 직접 터치 시작 시각·이동 거리로 판정하고, click(=touchend 뒤에 온다) 시점에
-        그 판정 결과를 확인한다 — 짧게 누르거나 지도를 끈 경우와 구분하기 위해서다.
-     ⚠️ 마커를 누르면 마커 자체의 click 이 처리하고 지도(map)의 click 은 따로 안 뜬다
-        (지도 SDK 공통 동작) — 그래서 기존 마커 위에서는 이 롱프레스가 안 걸린다. */
+
+     ★ 2026-09-03 사용자 지적: "지도에서 길게 눌러서 등록도 안돼" — 실기기에서 동작 안 함.
+        처음 버전은 지도의 'click' 이벤트(=터치를 뗀 뒤 브라우저가 만들어 주는 합성 클릭)를 기다렸다가
+        그 시점에 '길게 눌렀었는지'를 판정했다. 그런데 모바일에서는 손가락을 오래 붙이고 있다가 떼면
+        (특히 500ms 넘게 가만히 누르고 있으면) 브라우저·웹뷰가 그걸 '길게 누르기' 제스처로 보고
+        click 을 아예 안 만들어 주는 경우가 흔하다 — 그러면 판정 코드 자체가 실행되지 않는다.
+        → click 을 기다리지 않고, 누르고 있는 동안 타이머로 직접 LP_MS 가 지나면 그 순간 바로 실행한다
+          (뗄 때까지 기다리지 않는다 — 안드로이드 길게 누르기와 같은 느낌).
+        → 좌표는 카카오 지원팀이 안내한 공식 방법인 map.coordsFromContainerPoint() 로 구한다
+          (devtalk.kakao.com 문의 답변 — 사용자 입력 좌표 변환에는 이 메서드를 쓰라고 안내함).
+     ⚠️ 마커를 누르면 마커 자체가 이벤트를 먹어서, 마커 위에서는 이 롱프레스가 안 걸린다(지도 SDK 공통 동작). */
   function attachLongPress(map, box) {
-    var LP_MS = 500, MOVE_TOL = 14;
-    var st = 0, sx = 0, sy = 0, moved = false;
-    function start(x, y) { st = Date.now(); sx = x; sy = y; moved = false; }
-    function move(x, y) { if (Math.abs(x - sx) > MOVE_TOL || Math.abs(y - sy) > MOVE_TOL) moved = true; }
+    var LP_MS = 550, MOVE_TOL = 14;
+    var sx = 0, sy = 0, moved = false, timer = null;
+
+    function toLatLng(x, y) {
+      var r = box.getBoundingClientRect();
+      return map.coordsFromContainerPoint(new kakao.maps.Point(x - r.left, y - r.top));
+    }
+    function start(x, y) {
+      sx = x; sy = y; moved = false;
+      clearTimeout(timer);
+      timer = setTimeout(function () { if (!moved) addPlaceHere(toLatLng(x, y)); }, LP_MS);
+    }
+    function move(x, y) {
+      if (moved) return;
+      if (Math.abs(x - sx) > MOVE_TOL || Math.abs(y - sy) > MOVE_TOL) { moved = true; clearTimeout(timer); }
+    }
+    function cancel() { clearTimeout(timer); }
 
     box.addEventListener('touchstart', function (e) {
       var t = e.touches && e.touches[0]; if (t) start(t.clientX, t.clientY);
@@ -115,17 +133,14 @@
     box.addEventListener('touchmove', function (e) {
       var t = e.touches && e.touches[0]; if (t) move(t.clientX, t.clientY);
     }, { passive: true });
+    box.addEventListener('touchend', cancel, { passive: true });
+    box.addEventListener('touchcancel', cancel, { passive: true });
     box.addEventListener('mousedown', function (e) { start(e.clientX, e.clientY); });
     box.addEventListener('mousemove', function (e) { if (e.buttons) move(e.clientX, e.clientY); });
+    box.addEventListener('mouseup', cancel);
+    box.addEventListener('mouseleave', cancel);
     /* 안드로이드 WebView 기본 '길게 눌러 선택/저장' 메뉴가 뜨면 우리 손짓을 가로챈다 */
     box.addEventListener('contextmenu', function (e) { e.preventDefault(); });
-
-    kakao.maps.event.addListener(map, 'click', function (mouseEvent) {
-      var held = st ? (Date.now() - st) : 0;
-      var wasLong = st && !moved && held >= LP_MS;
-      st = 0;
-      if (wasLong) addPlaceHere(mouseEvent.latLng);
-    });
   }
 
   function addPlaceHere(latlng) {

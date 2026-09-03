@@ -121,6 +121,7 @@
             '<div class="view-toggle" style="margin-top:8px;">' +
               '<button type="button" class="tag on" id="pfTabList">🗂 목록</button>' +
               '<button type="button" class="tag" id="pfTabMap">🗺 지도</button>' +
+              '<button type="button" class="tag" id="pfHere">📍 현재 위치</button>' +
             '</div>' +
             '<div id="pfList" class="mini" style="margin-top:10px;">위치 잡는 중…</div>',
       foot: '<button class="btn primary" id="pfGo">찾기</button>'
@@ -168,8 +169,28 @@
     }
     ov.querySelector('#pfGo').onclick = search;
 
-    (p.geo ? Promise.resolve(p.geo) : Geo.read()).then(function (g) {
-      if (!p.geo) { p.geo = g; Place.save(); }
+    /* ★ 2026-09-03 사용자 지적: "주변찾기에서 현위치 반영이 안돼".
+       예전엔 p.geo 가 이미 있으면(카메라 켤 때 한 번 잡아 둔 위치 — camera.js 의 ensureGeo)
+       그걸 그대로 다시 썼다. 그 첫 위치가 실내라 부정확했거나 그 뒤에 자리를 옮겼으면
+       계속 옛 위치로만 검색돼 "GPS 가 안 잡히나" 처럼 보였다.
+       → 창을 열 때마다 항상 새로 한 번 읽고, 실패하면(권한 꺼짐 등) 그때만 기존 위치로 물러선다.
+       → 그래도 이상하면 사용자가 직접 다시 잡을 수 있게 '📍 현재 위치' 버튼도 둔다. */
+    function refreshGeo() {
+      return Geo.read().then(function (g) {
+        p.geo = g;
+        return Place.save().then(function () { return g; });
+      });
+    }
+
+    ov.querySelector('#pfHere').onclick = function () {
+      ov.querySelector('#pfList').textContent = '내 위치 다시 확인 중…';
+      refreshGeo().then(function () { search(); })
+        .catch(function (e) { showToast(e.message, 'err'); search(); });
+    };
+
+    refreshGeo().catch(function (e) {
+      if (!p.geo && !Geo.last()) throw e;   /* 새로 못 읽었고 물러설 위치도 없을 때만 진짜 실패 */
+    }).then(function () {
       search();
     }).catch(function (e) {
       ov.querySelector('#pfList').textContent = e.message + ' — 이름으로 찾아보세요.';
