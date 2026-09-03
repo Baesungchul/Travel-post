@@ -217,11 +217,15 @@
   }
 
   function showLink(res) {
+    try { if (window.UI && UI.refresh) UI.refresh(); } catch (e) {}   /* 설정 화면 등의 남은 횟수 표시 갱신 */
     var ov = overlay({
       title: '💻 PC용 링크를 만들었어요',
       body:
         '<div class="mini">사진 ' + res.n + '장이 글과 함께 담겼습니다.' +
           (res.skipped > 0 ? ' (한 링크에 ' + CFG.LINK_MAX + '장까지 — 뒤 ' + res.skipped + '장은 빠졌어요)' : '') + '</div>' +
+        /* ⭐ PC 링크도 글쓰기 횟수를 같이 쓴다(사용자 요청 2026-09-03) — 여기서 바로 보여줘야
+           "왜 깎였지?" 싶을 때 다음 화면까지 안 가고 바로 확인된다. */
+        (window.Subs ? '<div class="mini">' + esc(Subs.label('post')) + '</div>' : '') +
         '<div class="urlbox">' + esc(res.url) + '</div>' +
         '<ol class="steps">' +
           '<li>이 링크를 <b>PC에서</b> 여세요 (카톡으로 나에게 보내면 편해요)</li>' +
@@ -260,8 +264,10 @@
       return;
     }
     if (!loggedIn()) { showToast('PC 링크를 만들려면 먼저 로그인해주세요', 'err'); return; }
-    /* ⚠️ PC 링크는 서버 저장·전송 비용이 나간다 — 구독 게이트를 여기서 본다 */
-    if (window.Subs && !Subs.gateFeature('pclink')) return;
+    /* ⚠️ PC 링크는 서버 저장·전송 비용이 나간다 — 구독 대신 글쓰기 횟수와 같은 풀을 쓴다
+       (사용자 요청 2026-09-03). Subs.gateFeature('pclink', ...) 는 이제 PAID_ONLY 가 아니라
+       기본 분기를 타서 Subs.can('post') 를 그대로 확인한다 — subscription.js 참고. */
+    if (window.Subs && !Subs.gateFeature('pclink', 'PC 링크 만들기')) return;
     var tags = Place.tags(p);
     var all = collect(p);
     if (!all.length) { showToast('이 장소에 사진이 없어요 — 글만 복사해 쓰세요', 'err'); return; }
@@ -270,6 +276,9 @@
         showOverlay('PC용 링크 만드는 중...');
         var res = await makeLink(chId, text, all, tags);
         hideOverlay();
+        /* ☠️ 차감은 성공한 뒤에 한다 — 업로드가 실패했는데 횟수만 깎이면 사용자가 손해다
+           (ui_posts.js 의 AI 글 생성과 같은 원칙). */
+        if (window.Subs) Subs.use('post');
         showLink(res);
       } catch (e) {
         hideOverlay();

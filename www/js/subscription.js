@@ -133,8 +133,16 @@
 
   /* ── 기능 잠금 ──
      쓸 수 있으면 true, 아니면 안내를 띄우고 false.
-     ⚠️ 호출부는 반드시 `if (!Subs.gateFeature(...)) return;` 형태로 쓴다. */
-  var PAID_ONLY = { pclink: 'PC 링크 만들기', cloudbackup: '클라우드 백업' };
+     ⚠️ 호출부는 반드시 `if (!Subs.gateFeature(...)) return;` 형태로 쓴다.
+
+     ★ 2026-09-03 사용자 요청: "PC링크 만들기가 구독 전용이라고 하면서 실행이 안돼.
+        글쓰기횟수와 연동해서 쓸수있게해줘." — 결제가 아직 없어(Subs.isPaid() 는 늘 false)
+        PAID_ONLY 에 있던 기능은 사실상 영원히 못 쓰는 죽은 버튼이었다. pclink 는 여기서 뺐다
+        → 아래 기본 분기(글 생성 횟수 = 'post')를 그대로 타서, 글쓰기와 같은 월 무료 횟수 풀을
+          같이 쓴다(만들 때마다 1회 차감 — share.js 의 openPc() 참고). 서버 저장·전송 비용이
+          나가는 기능이라 무제한으로 풀면 안 되지만, 안 열리는 유료 전용보다는 훨씬 낫다.
+        클라우드 백업은 서버 비용 구조가 달라(1회성이 아니라 계속 쌓이는 저장 공간) 그대로 둔다. */
+  var PAID_ONLY = { cloudbackup: '클라우드 백업' };
 
   Subs.gateFeature = function (key, title, why) {
     if (PAID_ONLY[key]) {
@@ -161,9 +169,9 @@
         '<div class="lbl">예정 요금제 <span class="mini">(아직 결제를 열지 않았습니다)</span></div>' +
         '<div class="box">' +
           '<div class="set-row"><div><div class="k">무료</div>' +
-            '<div class="d">로그인하면 매달 글 ' + FREE_MONTHLY + '회</div></div></div>' +
+            '<div class="d">로그인하면 매달 글쓰기(PC 링크 포함) ' + FREE_MONTHLY + '회</div></div></div>' +
           '<div class="set-row"><div><div class="k">구독</div>' +
-            '<div class="d">글 무제한 + PC 링크 + 클라우드 백업 · 월 3,000~5,000원대 예정</div></div></div>' +
+            '<div class="d">글쓰기(PC 링크 포함) 무제한 + 클라우드 백업 · 월 3,000~5,000원대 예정</div></div></div>' +
         '</div>' +
         (Cloud.ready ? '' :
           '<div class="notice">지금은 로그인을 켤 수 없어 <b>맛보기 횟수까지만</b> 쓸 수 있습니다.<br>' +

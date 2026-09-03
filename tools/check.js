@@ -100,7 +100,7 @@ if (!leaked) ok('코드에 남은 도메인 단어 없음');
 console.log('\n[5] 안전장치');
 const gates = [
   ['ui_posts.js', "Subs.gateFeature('post'", 'AI 글 생성 게이트'],
-  ['share.js',    "Subs.gateFeature('pclink')", 'PC 링크 게이트'],
+  ['share.js',    "Subs.gateFeature('pclink'", 'PC 링크 게이트'],
   ['ui_posts.js', "Subs.use('post')", '성공 후 차감'],
   ['backup.js',   "mode === 'merge'", '비파괴 복구(합치기)'],
   ['cloud_backup.js', 'if (cur) { added.skipped++; continue; }', '클라우드 pull 이 로컬을 덮지 않음'],
