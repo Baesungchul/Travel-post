@@ -93,13 +93,17 @@
   function load() {
     var S;
     try { S = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) { S = null; }
-    if (!S) S = { ym: ym(), used: { post: 0 }, trialUsed: 0, coupon: { post: 0, exp: 0 }, plan: 'free', admin: false };
+    if (!S) S = { ym: ym(), used: { post: 0 }, trialUsed: 0, coupon: { post: 0, exp: 0 }, plan: 'free', admin: false, adCredit: 0, adProgress: 0 };
     if (S.ym !== ym()) { S.ym = ym(); S.used = { post: 0 }; }        // 달이 바뀌면 월 한도 초기화
     if (!S.used) S.used = { post: 0 };
     if (!S.coupon) S.coupon = { post: 0, exp: 0 };
     if (S.coupon.exp && Date.now() > S.coupon.exp) S.coupon = { post: 0, exp: 0 };
     if (S.admin == null) S.admin = false;
     if (!S.plan || !PLANS[S.plan]) S.plan = 'free';
+    /* ⭐ 2026-09-03: 광고 적립분 — 실제로 광고를 봐서 쌓은 것이라 쿠폰과 달리 만료를 안 둔다.
+       달이 바뀌어도(위 S.used 초기화와 달리) 그대로 남는다 — 애써 본 광고가 사라지면 안 된다. */
+    if (S.adCredit == null) S.adCredit = 0;
+    if (S.adProgress == null) S.adProgress = 0;
     return S;
   }
   function save(S) { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
@@ -144,19 +148,22 @@
      로그인 상태 변화가 아니어도 수동으로 부를 수 있게 이름을 밖으로 냈다. */
   Subs.refresh = pullServerState;
 
-  /* 남은 횟수 {coupon, monthly, trial, total, cap} — cap 은 이번 달 기준(무료 5 또는 요금제 한도) */
+  /* 남은 횟수 {coupon, adCredit, monthly, trial, total, cap} — cap 은 이번 달 기준(무료 5 또는 요금제 한도)
+     ⚠️ 2026-09-03: adCredit(광고 적립)은 'post' 하나에만 있다 — PC 링크도 이미 같은 'post' 풀을
+        쓰고 있어서(gateFeature 주석 참고) kind 별로 나눌 이유가 없다. */
   Subs.quota = function (kind) {
     kind = kind || 'post';
     var S = load();
     var coupon = (S.coupon.exp > Date.now()) ? Math.max(0, S.coupon[kind] || 0) : 0;
+    var adCredit = (kind === 'post') ? Math.max(0, S.adCredit || 0) : 0;
     if (!Subs.loggedIn()) {
       var trial = Math.max(0, TRIAL_FREE - (S.trialUsed || 0));
-      return { coupon: coupon, monthly: 0, trial: trial, total: coupon + trial, cap: 0 };
+      return { coupon: coupon, adCredit: 0, monthly: 0, trial: trial, total: coupon + trial, cap: 0 };
     }
     var pl = planOf(S);
     var cap = pl ? pl.monthly : FREE_MONTHLY;
     var monthly = Math.max(0, cap - (S.used[kind] || 0));
-    return { coupon: coupon, monthly: monthly, trial: 0, total: coupon + monthly, cap: cap };
+    return { coupon: coupon, adCredit: adCredit, monthly: monthly, trial: 0, total: coupon + adCredit + monthly, cap: cap };
   };
 
   /* 쓸 수 있는지 — {ok, msg} */
@@ -171,19 +178,47 @@
     if (Subs.isPaid()) {
       return { ok: false, msg: '이번 달 ' + planOf(load()).label + ' 한도를 다 썼어요. 다음 달 1일에 다시 채워집니다.' };
     }
+    if (window.Ads && Ads.available()) {
+      return { ok: false, msg: '이번 달 ' + KIND_LABEL[kind] + ' 무료 ' + FREE_MONTHLY +
+                               '회를 다 썼어요. 광고를 보면 계속 쓸 수 있고, 구독하면 광고 없이 바로 쓸 수 있어요.' };
+    }
     return { ok: false, msg: '이번 달 ' + KIND_LABEL[kind] + ' 무료 ' + FREE_MONTHLY +
                              '회를 다 썼어요. 다음 달까지 기다리거나 구독하면 광고 없이 계속 쓸 수 있어요.' };
   };
 
-  /* 사용 1회 차감 — 쿠폰 → 월 한도 → 맛보기 (현장매니저와 같은 순서).
+  /* 사용 1회 차감 — 쿠폰 → 광고 적립 → 월 한도 → 맛보기.
      ⚠️ 구독자도 이제 월 한도가 있으니(요금제별로 30/100/600) S.used 를 그대로 쌓는다 —
         예전처럼 isPaid() 라고 차감을 건너뛰지 않는다. */
   Subs.use = function (kind) {
     kind = kind || 'post';
     var S = load();
     if (S.coupon.exp > Date.now() && (S.coupon[kind] || 0) > 0) { S.coupon[kind]--; save(S); return; }
+    if (kind === 'post' && (S.adCredit || 0) > 0) { S.adCredit--; save(S); return; }
     if (Subs.loggedIn()) { S.used[kind] = (S.used[kind] || 0) + 1; save(S); return; }
     S.trialUsed = (S.trialUsed || 0) + 1; save(S);
+  };
+
+  /* ── 광고 한 편 시청 완료(리워드 확정) 시 ads.js 가 부른다 ──
+     kind: 'post'(광고 2편 필요) | 'pclink'(광고 1편 필요, PAID_ONLY 주석 참고 — PC 링크도
+     결국 'post' 풀에 적립된다). 필요한 편수를 다 채우면 즉시 1회 적립하고 진행률을 되돌린다.
+     반환값을 ads.js 가 그대로 화면 문구에 써서 "1/2 시청" 같은 진행 상황을 보여줄 수 있다. */
+  Subs.creditAdView = function (kind) {
+    var S = load();
+    var needed = (kind === 'pclink') ? AD_UNLOCK.pclink : AD_UNLOCK.post;
+    if (kind === 'pclink') {
+      S.adCredit = (S.adCredit || 0) + 1;
+      save(S);
+      return { unlocked: true, progress: 0, needed: needed };
+    }
+    S.adProgress = (S.adProgress || 0) + 1;
+    if (S.adProgress >= needed) {
+      S.adProgress = 0;
+      S.adCredit = (S.adCredit || 0) + 1;
+      save(S);
+      return { unlocked: true, progress: 0, needed: needed };
+    }
+    save(S);
+    return { unlocked: false, progress: S.adProgress, needed: needed };
   };
 
   /* 화면에 뿌릴 한 줄 */
@@ -196,7 +231,9 @@
       if (pl.unlimited) return pl.label + ' · 이번 달 계속 쓸 수 있어요';
       return pl.label + ' · 이번 달 ' + q.monthly + '/' + pl.monthly + '회 남음';
     }
-    return '이번 달 ' + q.monthly + '/' + FREE_MONTHLY + '회 남음' + (q.coupon ? ' + 쿠폰 ' + q.coupon + '회' : '');
+    return '이번 달 ' + q.monthly + '/' + FREE_MONTHLY + '회 남음' +
+      (q.coupon ? ' + 쿠폰 ' + q.coupon + '회' : '') +
+      (q.adCredit ? ' + 광고 적립 ' + q.adCredit + '회' : '');
   };
 
   /* ── 기능 잠금 ──
@@ -223,27 +260,44 @@
     }
     var c = Subs.can('post');
     if (c.ok) return true;
-    openPlans(title || '글 생성', c.msg);
+    openPlans(title || '글 생성', c.msg, key);
     return false;
   };
+
+  /* 지금 광고 진행률(글쓰기 기준) — openPlans 의 광고 버튼 문구에 쓴다 */
+  Subs.adProgress = function () { var S = load(); return { progress: S.adProgress || 0, needed: AD_UNLOCK.post }; };
 
   /* ── 요금제 안내 ──
      ⭐ 2026-09-03: iap.js(RevenueCat) 준비 — 콘솔 설정(Play 상품·RevenueCat 연결·config.js 의
         REVENUECAT_ANDROID_KEY)이 끝나 IAP.available() 가 true 가 되면 '구매하기' 버튼이
-        스스로 나타난다. 그 전까지는 예전 그대로 안내만 하고 결제창을 흉내내지 않는다. */
-  function openPlans(title, msg) {
+        스스로 나타난다. 그 전까지는 예전 그대로 안내만 하고 결제창을 흉내내지 않는다.
+     ⭐ 2026-09-03: ads.js(AdMob) 준비 — adKey('post'|'pclink', gateFeature 의 key 를 그대로
+        받는다)로 지금 막힌 게 글쓰기인지 PC 링크인지 알아서, 필요한 광고 편수가 다른 걸
+        버튼 문구에 정확히 보여준다(AD_UNLOCK 참고). Ads.available() 가 true 일 때만 뜬다. */
+  function openPlans(title, msg, adKey) {
     var canBuy = !!(window.IAP && IAP.available());
+    adKey = adKey || 'post';
+    var canWatchAd = !Subs.isPaid() && Subs.loggedIn() && !!(window.Ads && Ads.available());
+    var adNeeded = (adKey === 'pclink') ? AD_UNLOCK.pclink : AD_UNLOCK.post;
+    var adProg = (adKey === 'pclink') ? 0 : Subs.adProgress().progress;
     var ov = overlay({
       title: '🔒 ' + esc(title),
       body:
         '<div class="notice">' + esc(msg) + '</div>' +
         '<div class="lbl">지금</div>' +
         '<div class="box"><div class="mini">' + esc(Subs.label('post')) + '</div></div>' +
+        (canWatchAd ?
+          '<div class="box"><div class="d">' +
+            (adKey === 'pclink' ? 'PC 링크는 광고 <b>1편</b>으로 1회 늘어나요.' :
+              '글쓰기는 광고 <b>' + adNeeded + '편</b>으로 1회 늘어나요' +
+                (adProg ? ' (지금 ' + adProg + '/' + adNeeded + '편 시청했어요)' : '') + '.') +
+            '</div><button type="button" class="btn sm primary" id="plWatchAd" style="margin-top:8px;">▶ 광고 보고 늘리기</button></div>'
+          : '') +
         '<div class="lbl">' + (canBuy ? '요금제' : '예정 요금제 <span class="mini">(아직 결제를 열지 않았습니다)</span>') + '</div>' +
         '<div class="box">' +
           '<div class="set-row"><div><div class="k">무료</div>' +
             '<div class="d">로그인하면 매달 글쓰기(PC 링크 포함) ' + FREE_MONTHLY + '회<br>' +
-              '그 이후엔 광고를 보면 계속 쓸 수 있어요(준비 중)</div></div></div>' +
+              '그 이후엔 광고를 보면 계속 쓸 수 있어요' + (window.Ads && Ads.available() ? '' : '(준비 중)') + '</div></div></div>' +
           PLAN_ORDER.map(function (id) {
             var pl = PLANS[id];
             var mine = Subs.isPaid() && Subs.planId() === id;
@@ -278,6 +332,29 @@
     var lg = ov.querySelector('#plLogin');
     if (lg) lg.onclick = function () { ov.close(); if (UI.openLogin) UI.openLogin(); };
     ov.querySelector('#plCoupon').onclick = function () { ov.close(); openCoupon(); };
+    var wa = ov.querySelector('#plWatchAd');
+    if (wa) wa.onclick = function () {
+      wa.disabled = true; wa.textContent = '광고 불러오는 중…';
+      Ads.watchReward(adKey).then(function (r) {
+        if (!r) {
+          wa.disabled = false; wa.textContent = '▶ 광고 보고 늘리기';
+          showToast('광고를 끝까지 봐야 적립돼요.', 'err');
+          return;
+        }
+        if (r.unlocked) {
+          showToast('적립됐어요! 이어서 쓸 수 있어요.', 'ok');
+          ov.close();
+          if (window.UI && UI.refresh) UI.refresh();
+        } else {
+          wa.disabled = false;
+          wa.textContent = '▶ 광고 보고 늘리기 (' + r.progress + '/' + r.needed + ')';
+          showToast('광고 ' + (r.needed - r.progress) + '편 더 보면 적립돼요.', 'ok');
+        }
+      }).catch(function (e) {
+        wa.disabled = false; wa.textContent = '▶ 광고 보고 늘리기';
+        showToast('광고를 불러오지 못했어요: ' + ((e && e.message) || e), 'err');
+      });
+    };
     var rs = ov.querySelector('#plRestore');
     if (rs) rs.onclick = function () { rs.disabled = true; IAP.restore().then(function () { rs.disabled = false; }); };
     /* 구매 버튼 — 누르는 동안 같은 줄 버튼 둘 다 잠가서 중복 클릭을 막는다 */

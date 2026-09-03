@@ -90,11 +90,32 @@
          4) RevenueCat 프로젝트 설정의 'Public Google API Key' 를 복사해 아래 값에 넣는다.
          5) RevenueCat → Integrations → Webhooks 에서 주소를
             https://asia-northeast3-travel-post-52713.cloudfunctions.net/revenuecatWebhook
-            로 등록하고, Authorization 헤더 값을 하나 정해서 넣은 뒤(아무 긴 문자열),
-            그 값을 `firebase functions:secrets:set REVENUECAT_WEBHOOK_SECRET` 로 등록한다
-            (functions/index.js 의 revenuecatWebhook 참고 — 이 값은 여기 config.js 가 아니라
-            서버에만 있어야 한다). */
-    REVENUECAT_ANDROID_KEY: 'TODO_REVENUECAT_ANDROID_KEY'
+            로 등록하고, Authorization 헤더 값에 GitHub 저장소 시크릿 REVENUECAT_WEBHOOK_SECRET
+            과 같은 값을 넣는다(functions/index.js 의 revenuecatWebhook 참고 — 이 값은 여기
+            config.js 가 아니라 서버에만 있어야 한다. .github/workflows/firebase-deploy.yml 이
+            그 저장소 시크릿을 배포 때마다 Secret Manager 로 자동 동기화한다). */
+    REVENUECAT_ANDROID_KEY: 'TODO_REVENUECAT_ANDROID_KEY',
+
+    /* ── 광고 (AdMob, 2026-09-03 준비 시작) ──
+       ⚠️ App ID·광고 단위 ID 는 전부 '공개 값'이라 코드에 그대로 적어도 안전하다(RevenueCat
+          키와 같은 성격 — 앱 패키지명으로 막힌다). 진짜 광고 SDK 초기화는
+          android/app/src/main/AndroidManifest.xml 의 APPLICATION_ID 메타데이터가 한다 —
+          거기도 같이 바꿀 것(주석에 순서 적어 둠).
+       ⚠️ 지금은 전부 구글 공식 '테스트' 값이라 실제 켜자마자 광고가 뜨긴 뜬다("테스트 광고"
+          라고 화면에 표시됨) — 배성철님이 직접 시청 흐름을 확인해 볼 수 있다. 하지만 진짜
+          수익은 안 나고, 테스트 광고를 보고도 진짜 사용권이 풀린다(tools/check.js 가 AD_TEST_MODE
+          가 true 인 동안 배포 전 확인 문구로 계속 경고한다).
+       채우는 순서(배성철님이 콘솔에서 할 일):
+         1) admob.google.com 에서 무료 계정을 만들고 이 앱을 등록해 App ID 를 받는다.
+         2) 앱 안에서 쓸 광고 단위(Ad unit)를 3개 만든다 — 리워드(글쓰기용) / 리워드(PC링크용,
+            같은 리워드 광고 단위를 두 화면에서 같이 써도 되고 따로 만들어도 됨) / 배너(상시).
+         3) 아래 세 값 + AndroidManifest.xml 의 App ID 를 전부 진짜 값으로 바꾸고,
+            AD_TEST_MODE 를 false 로 바꾼다. */
+    AD_APP_ID: 'ca-app-pub-3940256099942544~3347511713',          // ⚠️ 구글 공식 테스트 App ID (AndroidManifest.xml 과 같이 바꿀 것)
+    AD_UNIT_REWARDED_POST:   'ca-app-pub-3940256099942544/5224354917',   // ⚠️ 구글 공식 테스트 리워드 광고 단위
+    AD_UNIT_REWARDED_PCLINK: 'ca-app-pub-3940256099942544/5224354917',   // ⚠️ 위와 같은 테스트 단위 — 실제로는 따로 만들어도 됨
+    AD_UNIT_BANNER:          'ca-app-pub-3940256099942544/9214589741',   // ⚠️ 구글 공식 테스트 배너 광고 단위
+    AD_TEST_MODE: true   // ⚠️ 실제 배포 전 반드시 false 로. true 인 동안은 tools/check.js 가 계속 경고한다
   };
 
   /* 'TODO' 로 시작하면 아직 안 채운 값 */
@@ -111,6 +132,12 @@
   CFG.hasKakaoMap = function () { return CFG.isSet('KAKAO_JS_KEY'); };
   CFG.hasHosting  = function () { return CFG.isSet('POST_BASE'); };
   CFG.hasRevenueCat = function () { return CFG.isSet('REVENUECAT_ANDROID_KEY'); };
+  /* 광고 단위 ID는 테스트 값으로 기본 채워져 있어(TODO 아님) 늘 true — AD_TEST_MODE 로
+     '진짜'인지 구분한다(tools/check.js 의 배포 전 경고 참고). */
+  CFG.hasAdMob = function () {
+    return CFG.isSet('AD_APP_ID') && CFG.isSet('AD_UNIT_REWARDED_POST') &&
+           CFG.isSet('AD_UNIT_REWARDED_PCLINK') && CFG.isSet('AD_UNIT_BANNER');
+  };
 
   /* 아직 안 채운 값 목록 — 설정 화면이 그대로 보여준다 */
   CFG.missing = function () {

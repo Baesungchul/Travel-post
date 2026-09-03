@@ -137,6 +137,9 @@ const post = read(path.join(WWW, 'site', 'post.html'));
 if (todos.length) warn('config.js 미설정 ' + [...new Set(todos)].length + '종: ' + [...new Set(todos)].join(', '));
 if (post.indexOf('TODO_PROJECT_ID') >= 0) warn('site/post.html 의 PROJECT / API_KEY 도 아직 비어 있음');
 if (!todos.length) ok('자리표시자 없음');
+/* ⭐ 2026-09-03: 광고 테스트 모드를 켠 채로 실서비스에 나가면, 사용자가 '테스트 광고'를 보고도
+   진짜 사용권을 받아가 버린다(수익 없이 공짜로 풀리는 구조) — TODO 스캔과 같은 취지로 미리 알려준다. */
+if (/AD_TEST_MODE\s*:\s*true/.test(cfg)) warn('config.js 의 AD_TEST_MODE 가 아직 true 입니다 — 실제 배포 전에 false 로 바꾸세요(테스트 광고로 진짜 사용권이 풀림)');
 
 console.log('\n' + (fails ? '❌ 실패 ' + fails + '건' : '✅ 통과') + (warns ? ' / 경고 ' + warns + '건' : ''));
 process.exit(fails ? 1 : 0);

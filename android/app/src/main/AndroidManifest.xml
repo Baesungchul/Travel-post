@@ -34,6 +34,17 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths"></meta-data>
         </provider>
+
+        <!-- ⭐ 2026-09-03 광고(AdMob) 연동 준비 — 지금은 구글 공식 테스트 App ID다.
+             실제 광고를 켜려면 admob.google.com 에서 이 앱을 등록해 받는 진짜 App ID로
+             바꿔야 한다(ca-app-pub-XXXXXXXXXXXXXXXX~XXXXXXXXXX 형식, www/js/config.js
+             주석에 순서 적어 둠). App ID는 비밀값이 아니라 여기 그대로 적어도 안전하다
+             (광고 단위 ID는 config.js 에 따로 있다).
+             ⚠️ 이 태그가 아예 없으면 Google Mobile Ads SDK가 앱 시작 때 바로 죽는다 —
+                실제 값을 넣기 전까지는 절대 지우지 말고 테스트 값을 그대로 둘 것. -->
+        <meta-data
+            android:name="com.google.android.gms.ads.APPLICATION_ID"
+            android:value="ca-app-pub-3940256099942544~3347511713" />
     </application>
 
     <!-- Permissions -->
