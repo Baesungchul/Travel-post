@@ -7,7 +7,7 @@ android {
         applicationId "com.baesungchul.travelpost"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 38
+        versionCode 39   // ⚠️ 2026-09-03: 38은 Play Console 업로드 실패로 이미 소비됨(재사용 불가) — 39로 건너뜀
         versionName "0.4.36"   // www/js/version.js 의 APP_VERSION 과 같게 유지할 것
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
