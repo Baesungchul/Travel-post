@@ -269,7 +269,9 @@ textarea.inp{ resize:vertical; min-height:78px; line-height:1.6; }
          -webkit-touch-callout:none; -webkit-user-select:none; user-select:none; }
 /* 길게 누르는 동안 손끝에 보이는 원 — map.js attachLongPress().
    자리를 잘못 눌렀는지 눈으로 바로 확인되고, 얼마나 더 누르고 있어야 하는지도 느껴진다. */
-.lp-ripple{ position:absolute; z-index:5; pointer-events:none;
+.lp-ripple{ position:absolute; z-index:99999; pointer-events:none;
+            /* ★ 2026-09-03: 카카오 지도 내부 레이어(타일·마커·컨트롤판)가 훨씬 높은
+               z-index 를 쓸 수 있어 5 로는 가려질 수 있었다 — 확실히 위로 올림. */
             width:14px; height:14px; margin:-7px 0 0 -7px; border-radius:50%;
             border:2px solid #2F6B4F; background:rgba(47,107,79,.18);
             transform:scale(1); opacity:.9;

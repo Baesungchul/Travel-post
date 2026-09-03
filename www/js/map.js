@@ -124,6 +124,20 @@
     var sx = 0, sy = 0, moved = false, timer = null, ripple = null;
     var CAP = { capture: true, passive: true };   /* 캡처 단계 + 스크롤 막지 않음 */
 
+    /* ★ 2026-09-03 진단용: 캡처 단계로 바꾼 뒤에도 실기기에서 "완전히 반응이 없다"(원조차
+       안 뜬다)는 보고가 다시 왔다 — 지도는 손가락으로 잘 움직여서(=터치 자체는 지도까지
+       분명히 온다) 이벤트 전달이 아예 안 되는 건지, 우리 쪽 로직만 문제인지 구분이 안 됐다.
+       원(.lp-ripple)은 카카오 지도 내부 레이어의 z-index 에 가려 안 보였을 수도 있으니
+       (지도 안쪽 div 라 그 위 레이어에 덮일 수 있다) — 지도 바깥의 토스트로, 터치가 시작되는
+       바로 그 순간 딱 한 번만 확인해 본다. 이 토스트가 안 뜨면 리스너 자체가 안 걸린 것이고,
+       뜨는데 원이나 새 기록이 안 생기면 그 다음 단계(타이머·좌표 변환) 쪽 문제로 좁혀진다. */
+    var debugShown = false;
+    function debugPing() {
+      if (debugShown) return;
+      debugShown = true;
+      try { if (window.showToast) showToast('🔧 지도 터치 인식됨(진단용)', 'ok'); } catch (e) {}
+    }
+
     function toLatLng(x, y) {
       var r = box.getBoundingClientRect();
       return map.coordsFromContainerPoint(new kakao.maps.Point(x - r.left, y - r.top));
@@ -167,6 +181,7 @@
     /* ⚠️ 반드시 캡처 단계(세 번째 인자 capture:true)로 달아야 한다 — 위 ② 설명 참고.
        버블 단계로 달면 카카오 내부 엘리먼트가 먼저 이벤트를 가로챌 수 있다. */
     box.addEventListener('touchstart', function (e) {
+      debugPing();
       var t = e.touches && e.touches[0]; if (t) start(t.clientX, t.clientY);
     }, CAP);
     box.addEventListener('touchmove', function (e) {
@@ -174,7 +189,7 @@
     }, CAP);
     box.addEventListener('touchend', cancel, CAP);
     box.addEventListener('touchcancel', cancel, CAP);
-    box.addEventListener('mousedown', function (e) { start(e.clientX, e.clientY); }, { capture: true });
+    box.addEventListener('mousedown', function (e) { debugPing(); start(e.clientX, e.clientY); }, { capture: true });
     box.addEventListener('mousemove', function (e) { if (e.buttons) move(e.clientX, e.clientY); }, { capture: true });
     box.addEventListener('mouseup', cancel, { capture: true });
     box.addEventListener('mouseleave', cancel, { capture: true });
