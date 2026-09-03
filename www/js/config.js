@@ -69,7 +69,32 @@
        또 카카오 개발자 콘솔에 이 앱의 도메인을 등록해야 지도가 뜬다. */
     KAKAO_JS_KEY: '7c6b3a6ba30f09cf55bbe5e82c4859f1',
     KAKAO_LOCAL_URL: 'https://dapi.kakao.com/v2/local/search/category.json',
-    KAKAO_KEYWORD_URL: 'https://dapi.kakao.com/v2/local/search/keyword.json'
+    KAKAO_KEYWORD_URL: 'https://dapi.kakao.com/v2/local/search/keyword.json',
+
+    /* ── 구독 결제 (RevenueCat, 2026-09-03 준비 시작) ──
+       ⚠️ 이 값은 '공개 API 키'라 여기 코드에 그대로 적어도 안전하다(현장매니저의 카카오 JS
+          키·Firebase apiKey 와 같은 성격 — 도메인/패키지명으로 막는 값이지 비밀값이 아니다).
+          진짜 비밀(구글 플레이 서비스 계정, 웹훅 시크릿)은 RevenueCat 콘솔과 Firebase
+          Secret Manager 에만 있고 이 파일엔 절대 안 넣는다.
+       채우는 순서(배성철님이 콘솔에서 할 일):
+         1) Play Console 에서 이 앱에 구독 상품 6개를 만든다(상품 ID 를 정확히 맞출 것):
+            tp_t30_monthly / tp_t30_yearly / tp_t100_monthly / tp_t100_yearly /
+            tp_unl_monthly / tp_unl_yearly  (숫자는 subscription.js 의 PLANS 요금과 맞춘다)
+         2) revenuecat.com 무료 계정을 만들고 새 프로젝트 → Google Play 앱을 추가한다.
+            Play Console → 설정 → API 액세스에서 서비스 계정을 만들어 RevenueCat 에 연결하고
+            '재무 데이터' 열람 권한을 준다(RevenueCat 가이드가 화면으로 안내해 줌).
+         3) 위 상품 6개를 가져와서, entitlement 를 t30 / t100 / unl 세 개로 만들고
+            (연간·월간 상품을 같은 entitlement 에 묶는다) 하나의 Offering 에
+            패키지 식별자를 t30_monthly / t30_yearly / t100_monthly / t100_yearly /
+            unl_monthly / unl_yearly 로 맞춰 담는다 — www/js/iap.js 가 이 이름으로 찾는다.
+         4) RevenueCat 프로젝트 설정의 'Public Google API Key' 를 복사해 아래 값에 넣는다.
+         5) RevenueCat → Integrations → Webhooks 에서 주소를
+            https://asia-northeast3-travel-post-52713.cloudfunctions.net/revenuecatWebhook
+            로 등록하고, Authorization 헤더 값을 하나 정해서 넣은 뒤(아무 긴 문자열),
+            그 값을 `firebase functions:secrets:set REVENUECAT_WEBHOOK_SECRET` 로 등록한다
+            (functions/index.js 의 revenuecatWebhook 참고 — 이 값은 여기 config.js 가 아니라
+            서버에만 있어야 한다). */
+    REVENUECAT_ANDROID_KEY: 'TODO_REVENUECAT_ANDROID_KEY'
   };
 
   /* 'TODO' 로 시작하면 아직 안 채운 값 */
@@ -85,6 +110,7 @@
   CFG.hasKakao    = function () { return CFG.isSet('KAKAO_REST_KEY'); };
   CFG.hasKakaoMap = function () { return CFG.isSet('KAKAO_JS_KEY'); };
   CFG.hasHosting  = function () { return CFG.isSet('POST_BASE'); };
+  CFG.hasRevenueCat = function () { return CFG.isSet('REVENUECAT_ANDROID_KEY'); };
 
   /* 아직 안 채운 값 목록 — 설정 화면이 그대로 보여준다 */
   CFG.missing = function () {

@@ -1,6 +1,6 @@
 /* sw.js — 앱 껍데기 캐시.
    ⚠️ 파일을 추가하면 SHELL 에도 넣고 VER 을 올릴 것. */
-var VER = 'tp-v32';
+var VER = 'tp-v33';
 var SHELL = [
   './', './index.html', './styles.css', './manifest.json', './icon.svg', './icon-maskable.svg',
   './js/vendor/firebase-app-compat.js', './js/vendor/firebase-auth-compat.js',
@@ -8,7 +8,7 @@ var SHELL = [
   './js/config.js', './js/version.js', './js/tokens.js', './js/categories.js',
   './js/profiles.js', './js/store.js', './js/state.js', './js/image.js',
   './js/native-fs.js', './js/exif.js', './js/photos.js', './js/geo.js', './js/camera.js',
-  './js/cloud.js', './js/subscription.js', './js/ai.js', './js/share.js',
+  './js/cloud.js', './js/iap.js', './js/subscription.js', './js/ai.js', './js/share.js',
   './js/backup.js', './js/cloud_backup.js', './js/map.js', './js/trips.js', './js/plans.js', './js/calendar.js', './js/tabbar.js',
   './js/ui_now.js', './js/ui_records.js', './js/ui_posts.js', './js/ui_settings.js',
   './js/app.js',

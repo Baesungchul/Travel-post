@@ -140,6 +140,9 @@
     }).catch(function (e) { console.warn('[Subs] 서버 상태 확인 실패', e && e.code); });
   }
   try { if (window.Cloud && Cloud.onChange) Cloud.onChange(pullServerState); } catch (e) {}
+  /* ★ 2026-09-03: 구매 직후 iap.js 가 이걸 불러서 서버(웹훅이 방금 채운 plan)를 다시 당겨온다.
+     로그인 상태 변화가 아니어도 수동으로 부를 수 있게 이름을 밖으로 냈다. */
+  Subs.refresh = pullServerState;
 
   /* 남은 횟수 {coupon, monthly, trial, total, cap} — cap 은 이번 달 기준(무료 5 또는 요금제 한도) */
   Subs.quota = function (kind) {
@@ -225,28 +228,40 @@
   };
 
   /* ── 요금제 안내 ──
-     ⬜ 결제가 아직 없다. 결제창을 흉내내지 않고 있는 그대로 말한다. */
+     ⭐ 2026-09-03: iap.js(RevenueCat) 준비 — 콘솔 설정(Play 상품·RevenueCat 연결·config.js 의
+        REVENUECAT_ANDROID_KEY)이 끝나 IAP.available() 가 true 가 되면 '구매하기' 버튼이
+        스스로 나타난다. 그 전까지는 예전 그대로 안내만 하고 결제창을 흉내내지 않는다. */
   function openPlans(title, msg) {
+    var canBuy = !!(window.IAP && IAP.available());
     var ov = overlay({
       title: '🔒 ' + esc(title),
       body:
         '<div class="notice">' + esc(msg) + '</div>' +
         '<div class="lbl">지금</div>' +
         '<div class="box"><div class="mini">' + esc(Subs.label('post')) + '</div></div>' +
-        '<div class="lbl">예정 요금제 <span class="mini">(아직 결제를 열지 않았습니다)</span></div>' +
+        '<div class="lbl">' + (canBuy ? '요금제' : '예정 요금제 <span class="mini">(아직 결제를 열지 않았습니다)</span>') + '</div>' +
         '<div class="box">' +
           '<div class="set-row"><div><div class="k">무료</div>' +
             '<div class="d">로그인하면 매달 글쓰기(PC 링크 포함) ' + FREE_MONTHLY + '회<br>' +
               '그 이후엔 광고를 보면 계속 쓸 수 있어요(준비 중)</div></div></div>' +
           PLAN_ORDER.map(function (id) {
             var pl = PLANS[id];
-            return '<div class="set-row"><div><div class="k">' + esc(pl.label) + '</div>' +
+            var mine = Subs.isPaid() && Subs.planId() === id;
+            return '<div class="set-row" data-plan="' + id + '"><div style="flex:1;"><div class="k">' + esc(pl.label) +
+                (mine ? ' <span class="badge">지금 이용 중</span>' : '') + '</div>' +
               '<div class="d">글쓰기(PC 링크 포함) 월 ' + (pl.unlimited ? '무제한' : (pl.monthly + '회')) +
                 ' · 광고 없음<br>' +
                 '월 ' + won(pl.price) + ' · 연 ' + won(pl.priceYearly) + '(12개월 결제 시 10개월 값, 2개월 무료)' +
-              '</div></div></div>';
+              '</div>' +
+              (canBuy && !mine ?
+                '<div class="btn-row" style="margin-top:8px;">' +
+                  '<button type="button" class="btn sm primary plBuy" data-plan="' + id + '" data-period="monthly">월 구독</button>' +
+                  '<button type="button" class="btn sm ghost plBuy" data-plan="' + id + '" data-period="yearly">연 구독</button>' +
+                '</div>' : '') +
+              '</div></div>';
           }).join('') +
         '</div>' +
+        (canBuy ? '<div class="mini">구독 해지·결제수단 변경은 Play 스토어 앱의 정기 결제 메뉴에서 할 수 있어요.</div>' : '') +
         (Cloud.ready ? '' :
           '<div class="notice">지금은 로그인을 켤 수 없어 <b>맛보기 횟수까지만</b> 쓸 수 있습니다.<br>' +
           '<span class="mini">' + esc(Cloud.why) + '</span></div>') +
@@ -255,6 +270,7 @@
            Firebase 키가 없을 때도 '로그인하기'가 떠 있어서, 누르면 "아직 못 켠다"는 창만 또 떴다.
            켤 수 없는 버튼은 아예 내리고, 왜 지금은 방법이 없는지 위에 적는다. */
       foot: ((Cloud.ready && !Subs.loggedIn()) ? '<button class="btn primary" id="plLogin">로그인하기</button>' : '') +
+            (canBuy ? '<button class="btn ghost" id="plRestore">구매 복원</button>' : '') +
             '<button class="btn ghost" id="plCoupon">쿠폰 등록</button>' +
             '<button class="btn ghost" id="plClose">닫기</button>'
     });
@@ -262,6 +278,20 @@
     var lg = ov.querySelector('#plLogin');
     if (lg) lg.onclick = function () { ov.close(); if (UI.openLogin) UI.openLogin(); };
     ov.querySelector('#plCoupon').onclick = function () { ov.close(); openCoupon(); };
+    var rs = ov.querySelector('#plRestore');
+    if (rs) rs.onclick = function () { rs.disabled = true; IAP.restore().then(function () { rs.disabled = false; }); };
+    /* 구매 버튼 — 누르는 동안 같은 줄 버튼 둘 다 잠가서 중복 클릭을 막는다 */
+    ov.querySelectorAll('.plBuy').forEach(function (btn) {
+      btn.onclick = function () {
+        var row = btn.closest('.set-row');
+        var pair = row ? row.querySelectorAll('.plBuy') : [btn];
+        pair.forEach(function (b) { b.disabled = true; });
+        IAP.purchase(btn.getAttribute('data-plan'), btn.getAttribute('data-period')).then(function (ok) {
+          if (ok) { ov.close(); return; }
+          pair.forEach(function (b) { b.disabled = false; });
+        });
+      };
+    });
   }
   Subs.openPlans = openPlans;
 
