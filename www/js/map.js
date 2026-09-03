@@ -98,7 +98,7 @@
      사용자 요청(2026-09-02): "지도에 등록 안되어 있는곳도 지도에서 길게눌러서 입력할수 있게 해줘.
      길게누르면 해당 주소가 들어가게 하고 상호는 비워두는 걸로 해줘."
 
-     ★ 2026-09-03 사용자 지적: "지도에서 길게 눌러서 등록도 안돼" — 실기기에서 동작 안 함.
+     ★ 2026-09-03 사용자 지적 ①: "지도에서 길게 눌러서 등록도 안돼" — 실기기에서 동작 안 함.
         처음 버전은 지도의 'click' 이벤트(=터치를 뗀 뒤 브라우저가 만들어 주는 합성 클릭)를 기다렸다가
         그 시점에 '길게 눌렀었는지'를 판정했다. 그런데 모바일에서는 손가락을 오래 붙이고 있다가 떼면
         (특히 500ms 넘게 가만히 누르고 있으면) 브라우저·웹뷰가 그걸 '길게 누르기' 제스처로 보고
@@ -107,40 +107,79 @@
           (뗄 때까지 기다리지 않는다 — 안드로이드 길게 누르기와 같은 느낌).
         → 좌표는 카카오 지원팀이 안내한 공식 방법인 map.coordsFromContainerPoint() 로 구한다
           (devtalk.kakao.com 문의 답변 — 사용자 입력 좌표 변환에는 이 메서드를 쓰라고 안내함).
+
+     ★ 2026-09-03 사용자 지적 ②: 위 수정을 넣은 뒤에도 "여전히 안 된다" — 진짜 원인은 따로 있었다.
+        카카오 지도 SDK 는 지도를 그릴 때 box(#mapBox) **안쪽에 자기 타일·마커용 div 를 더 만들고
+        그 안쪽 엘리먼트에** 자체 터치 리스너(드래그로 지도 움직이기 등)를 건다. 우리 리스너는
+        box(바깥 엘리먼트)에 **버블 단계**로 달려 있었는데, 안쪽 리스너가 지도를 움직이려고
+        stopPropagation() 을 부르면 이벤트가 box 까지 올라오지도 못한다 — 그러면 우리 touchstart 는
+        아예 실행되지 않고, 타이머도 시작이 안 되니 아무리 오래 눌러도 반응이 없다.
+        → 캡처 단계(capture: true)로 등록하면 이벤트가 안쪽(target)까지 내려가기 **전에** 바깥쪽인
+          box 를 먼저 지나가면서 우리 리스너부터 실행된다 — 안쪽에서 나중에 stopPropagation 을
+          불러도 이미 실행된 우리 코드에는 영향이 없다. DOM 이벤트 캡처 단계의 기본 동작이라
+          카카오 SDK 내부 구현이 어떻든 항상 성립한다.
      ⚠️ 마커를 누르면 마커 자체가 이벤트를 먹어서, 마커 위에서는 이 롱프레스가 안 걸린다(지도 SDK 공통 동작). */
   function attachLongPress(map, box) {
     var LP_MS = 550, MOVE_TOL = 14;
-    var sx = 0, sy = 0, moved = false, timer = null;
+    var sx = 0, sy = 0, moved = false, timer = null, ripple = null;
+    var CAP = { capture: true, passive: true };   /* 캡처 단계 + 스크롤 막지 않음 */
 
     function toLatLng(x, y) {
       var r = box.getBoundingClientRect();
       return map.coordsFromContainerPoint(new kakao.maps.Point(x - r.left, y - r.top));
     }
+    /* 누르는 동안 손끝에 원이 자라는 걸 보여준다 — 실제로 눌림이 잡혔는지 눈으로 확인되고,
+       "반응이 없다"는 문의가 다시 오면 이 원이 뜨는지부터 확인해 원인을 좁힐 수 있다. */
+    function showRipple(x, y) {
+      hideRipple();
+      var r = box.getBoundingClientRect();
+      var el = document.createElement('div');
+      el.className = 'lp-ripple';
+      el.style.left = (x - r.left) + 'px';
+      el.style.top = (y - r.top) + 'px';
+      el.style.setProperty('--lp-ms', LP_MS + 'ms');
+      box.appendChild(el);
+      void el.offsetWidth;   /* 강제 리플로우 — 바로 grow 를 붙이면 트랜지션 없이 순간이동해 버린다 */
+      el.classList.add('grow');
+      ripple = el;
+    }
+    function hideRipple() {
+      if (!ripple) return;
+      var el = ripple; ripple = null;
+      el.classList.add('gone');
+      setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 200);
+    }
     function start(x, y) {
       sx = x; sy = y; moved = false;
       clearTimeout(timer);
-      timer = setTimeout(function () { if (!moved) addPlaceHere(toLatLng(x, y)); }, LP_MS);
+      showRipple(x, y);
+      timer = setTimeout(function () {
+        hideRipple();
+        if (!moved) addPlaceHere(toLatLng(x, y));
+      }, LP_MS);
     }
     function move(x, y) {
       if (moved) return;
-      if (Math.abs(x - sx) > MOVE_TOL || Math.abs(y - sy) > MOVE_TOL) { moved = true; clearTimeout(timer); }
+      if (Math.abs(x - sx) > MOVE_TOL || Math.abs(y - sy) > MOVE_TOL) { moved = true; clearTimeout(timer); hideRipple(); }
     }
-    function cancel() { clearTimeout(timer); }
+    function cancel() { clearTimeout(timer); hideRipple(); }
 
+    /* ⚠️ 반드시 캡처 단계(세 번째 인자 capture:true)로 달아야 한다 — 위 ② 설명 참고.
+       버블 단계로 달면 카카오 내부 엘리먼트가 먼저 이벤트를 가로챌 수 있다. */
     box.addEventListener('touchstart', function (e) {
       var t = e.touches && e.touches[0]; if (t) start(t.clientX, t.clientY);
-    }, { passive: true });
+    }, CAP);
     box.addEventListener('touchmove', function (e) {
       var t = e.touches && e.touches[0]; if (t) move(t.clientX, t.clientY);
-    }, { passive: true });
-    box.addEventListener('touchend', cancel, { passive: true });
-    box.addEventListener('touchcancel', cancel, { passive: true });
-    box.addEventListener('mousedown', function (e) { start(e.clientX, e.clientY); });
-    box.addEventListener('mousemove', function (e) { if (e.buttons) move(e.clientX, e.clientY); });
-    box.addEventListener('mouseup', cancel);
-    box.addEventListener('mouseleave', cancel);
+    }, CAP);
+    box.addEventListener('touchend', cancel, CAP);
+    box.addEventListener('touchcancel', cancel, CAP);
+    box.addEventListener('mousedown', function (e) { start(e.clientX, e.clientY); }, { capture: true });
+    box.addEventListener('mousemove', function (e) { if (e.buttons) move(e.clientX, e.clientY); }, { capture: true });
+    box.addEventListener('mouseup', cancel, { capture: true });
+    box.addEventListener('mouseleave', cancel, { capture: true });
     /* 안드로이드 WebView 기본 '길게 눌러 선택/저장' 메뉴가 뜨면 우리 손짓을 가로챈다 */
-    box.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+    box.addEventListener('contextmenu', function (e) { e.preventDefault(); }, { capture: true });
   }
 
   function addPlaceHere(latlng) {
