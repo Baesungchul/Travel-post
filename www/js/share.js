@@ -187,6 +187,12 @@
     var postId = firebase.firestore().collection('sns_posts').doc().id;
     var use = list.slice(0, CFG.LINK_MAX);
     var urls = [], paths = [], kinds = [];
+    /* ★ 2026-09-03: PAID_ONLY 에 묶여 있던 동안은 아무도 이 코드를 실제로 못 돌려봤다
+       (Subs.isPaid() 는 늘 false 라 여기까지 온 적이 없다 — share.js 참고).
+       그래서 "링크 만들기 실패"만 뜨고 왜인지는 안 보였다 — 사진 업로드 실패를 조용히
+       콘솔에만 warn 하고 넘어갔기 때문. 이제 첫 번째 진짜 원인(Storage 오류 코드 등)을
+       붙잡아 뒀다가 사용자에게 그대로 보여준다. */
+    var firstErr = null;
 
     for (var i = 0; i < use.length; i++) {
       setProg((i / use.length) * 100, '사진 올리는 중 ' + (i + 1) + '/' + use.length);
@@ -201,10 +207,16 @@
         urls.push(await firebase.storage().ref(path).getDownloadURL());
         paths.push(path);
         kinds.push(use[i].tag || '');     /* ⭐ 태그를 같이 넘겨야 페이지가 (사진: 음식) 자리에 맞는 사진을 넣는다 */
-      } catch (e) { console.warn('[Share] 업로드 실패', path, e && (e.code || e.message)); }
+      } catch (e) {
+        var why = (e && (e.code || e.message)) || String(e);
+        if (!firstErr) firstErr = why;
+        console.warn('[Share] 업로드 실패', path, why);
+      }
       await new Promise(function (res) { setTimeout(res, 0); });
     }
-    if (!urls.length) throw new Error('사진을 하나도 올리지 못했습니다');
+    if (!urls.length) {
+      throw new Error('사진을 하나도 올리지 못했습니다' + (firstErr ? ' — ' + firstErr : ' (사진에 접근하지 못했어요)'));
+    }
 
     var expMs = Date.now() + CFG.LINK_TTL_MS;
     await firebase.firestore().collection('sns_posts').doc(postId).set({
@@ -282,7 +294,15 @@
         showLink(res);
       } catch (e) {
         hideOverlay();
-        showToast('링크 만들기 실패: ' + ((e && (e.message || e.code)) || ''), 'err');
+        /* ★ 2026-09-03: 토스트는 몇 초면 사라져서 정확한 원인 문구를 놓치기 쉽다
+           ("링크 만들기 실패"라고만 남기 쉬움). 창으로 띄워서 끝까지 읽고, 필요하면
+           그대로 옮겨 적을 수 있게 한다. */
+        var why = (e && (e.message || e.code)) || '알 수 없는 오류';
+        overlay({
+          title: '링크 만들기 실패',
+          body: '<div class="notice">' + esc(why) + '</div>' +
+                '<div class="mini">화면을 캡처해서 알려주시면 원인을 더 빨리 찾을 수 있어요.</div>'
+        });
       }
     })();
   }
