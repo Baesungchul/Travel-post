@@ -120,17 +120,18 @@
           카카오 SDK 내부 구현이 어떻든 항상 성립한다.
      ⚠️ 마커를 누르면 마커 자체가 이벤트를 먹어서, 마커 위에서는 이 롱프레스가 안 걸린다(지도 SDK 공통 동작). */
   function attachLongPress(map, box) {
-    var LP_MS = 550, MOVE_TOL = 14;
-    var sx = 0, sy = 0, moved = false, timer = null, ripple = null;
+    /* ★ 2026-09-03 사용자 확인: 진단 토스트("지도 터치 인식됨")는 뜬다 — 캡처 리스너는
+       정상적으로 걸려 있다. 그런데도 "장소 인식은 안 된다"고 하니, 문제는 그 다음 단계
+       (0.5초를 채우기 전에 손끝이 조금 움직였다고 우리가 스스로 취소해버리는 것) 로 좁혀진다.
+       실제 손가락은 마우스 포인터와 달리 가만히 있어도 접촉면이 미세하게 흔들려서 14px
+       허용치를 쉽게 넘는다 — 그러면 원이 다 자라기도 전에 조용히 취소되고, 사용자 눈엔
+       "그냥 반응이 없다"로 보인다. 허용치를 넉넉히 늘리고(진짜 지도 드래그는 이보다 훨씬 많이
+       움직인다), 타이머가 끝나는 순간·움직임으로 취소되는 순간에도 진단 토스트를 하나씩 더
+       띄워서 이번에도 안 되면 정확히 어느 단계인지 바로 알 수 있게 한다. */
+    var LP_MS = 550, MOVE_TOL = 32;
+    var sx = 0, sy = 0, cx = 0, cy = 0, moved = false, timer = null, ripple = null;
     var CAP = { capture: true, passive: true };   /* 캡처 단계 + 스크롤 막지 않음 */
 
-    /* ★ 2026-09-03 진단용: 캡처 단계로 바꾼 뒤에도 실기기에서 "완전히 반응이 없다"(원조차
-       안 뜬다)는 보고가 다시 왔다 — 지도는 손가락으로 잘 움직여서(=터치 자체는 지도까지
-       분명히 온다) 이벤트 전달이 아예 안 되는 건지, 우리 쪽 로직만 문제인지 구분이 안 됐다.
-       원(.lp-ripple)은 카카오 지도 내부 레이어의 z-index 에 가려 안 보였을 수도 있으니
-       (지도 안쪽 div 라 그 위 레이어에 덮일 수 있다) — 지도 바깥의 토스트로, 터치가 시작되는
-       바로 그 순간 딱 한 번만 확인해 본다. 이 토스트가 안 뜨면 리스너 자체가 안 걸린 것이고,
-       뜨는데 원이나 새 기록이 안 생기면 그 다음 단계(타이머·좌표 변환) 쪽 문제로 좁혀진다. */
     var debugShown = false;
     function debugPing() {
       if (debugShown) return;
@@ -164,17 +165,23 @@
       setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 200);
     }
     function start(x, y) {
-      sx = x; sy = y; moved = false;
+      sx = x; sy = y; cx = x; cy = y; moved = false;
       clearTimeout(timer);
       showRipple(x, y);
       timer = setTimeout(function () {
         hideRipple();
-        if (!moved) addPlaceHere(toLatLng(x, y));
+        if (moved) return;
+        try { if (window.showToast) showToast('🔧 롱프레스 인식 — 장소 만드는 중(진단용)', 'ok'); } catch (e) {}
+        addPlaceHere(toLatLng(cx, cy));   /* 손끝이 허용치 안에서 움직였다면 마지막 위치를 쓴다 */
       }, LP_MS);
     }
     function move(x, y) {
+      cx = x; cy = y;
       if (moved) return;
-      if (Math.abs(x - sx) > MOVE_TOL || Math.abs(y - sy) > MOVE_TOL) { moved = true; clearTimeout(timer); hideRipple(); }
+      if (Math.abs(x - sx) > MOVE_TOL || Math.abs(y - sy) > MOVE_TOL) {
+        moved = true; clearTimeout(timer); hideRipple();
+        try { if (window.showToast) showToast('🔧 움직임으로 취소됨(진단용)', 'err'); } catch (e) {}
+      }
     }
     function cancel() { clearTimeout(timer); hideRipple(); }
 
