@@ -179,42 +179,34 @@
     box.addEventListener('contextmenu', function (e) { e.preventDefault(); }, { capture: true });
   }
 
+  /* ★ 2026-09-03 사용자 요청: 예전엔 주소를 못 찾아도 "위치만이라도" 살려서 저장했다.
+     그런데 그렇게 남은 이름·주소 없는 빈 껍데기가 달력에 '9월 3일 기록'처럼 정체 모를
+     카드로 쌓여 오히려 헷갈렸다("이게 자동으로 생기는데 없어도 되지 않을까?").
+     → 주소를 못 찾으면 아예 만들지 않는다. 다시 눌러보거나 '이름으로 찾기'를 쓰라고 안내한다. */
   function addPlaceHere(latlng) {
     var pf = window.Profiles && Profiles.current();
     if (!pf) { if (window.UI && UI.openCategoryPicker) UI.openCategoryPicker(); return; }
     var geo = { lat: latlng.getLat(), lng: latlng.getLng() };
     var wantAddr = !!(window.Geo && Geo.available());
     if (window.showOverlay) showOverlay('주소를 찾는 중...');
-    /* ★ 2026-09-03: "롱프레스 인식" 진단 토스트는 뜨는데 그 다음(주소 찾기 오버레이 →
-       새 화면 전환)이 전혀 안 일어난다는 확인을 받았다. 원래 .then() 안에서 던지는 예외는
-       promise 체인의 .catch() 가 잡지만, 그 .catch() 가 실제 오류 내용을 보여주지 않고
-       늘 같은 안내문만 띄운 뒤 Place.create 등을 **또** 동기적으로 호출했다 — 그 재시도
-       자체가 또 던지면 아무 .catch() 도 없는 채로 조용히 묻힌다. 진짜 오류를 그대로
-       보여주고, 재시도 쪽도 감싸서 어디서 멈추는지 이번엔 확실히 잡는다. */
     (wantAddr ? Geo.reverse(geo) : Promise.resolve('')).then(function (addr) {
       if (window.hideOverlay) hideOverlay();
+      if (!addr) {
+        showToast('이 위치의 주소를 찾지 못해서 등록하지 않았어요. 다시 눌러보거나 이름으로 찾기를 써보세요.', 'err');
+        return;
+      }
       Place.create(pf.id);
       var p = Place.current();
       p.geo = geo;
-      p.address = addr || '';
-      p.area = addr ? Categories.areaOf(addr) : '';
+      p.address = addr;
+      p.area = Categories.areaOf(addr);
       return Place.save().then(function () {
-        showToast(catFill('여기에 새 {장소호칭}를 시작했어요', pf) + (addr ? ' — ' + addr : ' (주소를 못 찾았어요, 손으로 적어주세요)'), 'ok');
+        showToast(catFill('여기에 새 {장소호칭}를 시작했어요', pf) + ' — ' + addr, 'ok');
         if (window.UI && UI.switchTab) UI.switchTab('now');
       });
     }).catch(function (e) {
       if (window.hideOverlay) hideOverlay();
-      showToast('주소를 찾지 못했어요 — 위치만 저장했어요. 손으로 적어주세요.', 'err');
-      try {
-        Place.create(pf.id);
-        Place.current().geo = geo;
-        Place.save().then(function () { if (window.UI && UI.switchTab) UI.switchTab('now'); })
-          .catch(function (e3) {
-            try { if (window.showToast) showToast('저장에 실패했어요: ' + ((e3 && e3.message) || e3), 'err'); } catch (e4) {}
-          });
-      } catch (e5) {
-        try { if (window.showToast) showToast('새 기록 저장 중 문제가 생겼어요: ' + (e5 && e5.message || e5), 'err'); } catch (e6) {}
-      }
+      showToast('새 기록을 만들지 못했어요: ' + ((e && e.message) || e), 'err');
     });
   }
 

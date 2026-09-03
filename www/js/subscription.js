@@ -28,6 +28,14 @@
   var PAID_MONTHLY = 999999;// 유료: 사실상 무제한
   var KIND_LABEL = { post: '글 생성' };
 
+  /* ⭐ 구독 요금 (사용자 확정 2026-09-03) — 단일 구독 한 단계만 둔다.
+     · 월 3,900원 · 연 39,000원(월 3,900원 x 10개월 값 = 2개월 무료, 약 17% 할인)
+     ⬜ 아직 결제 연동 전이라 여기 숫자는 화면 문구용이다. 실제 상품(Google Play 정기결제 등)
+        등록·심사가 끝나면 Subs.isPaid() 를 그 결제 상태와 연결한다. */
+  var PRICE_MONTHLY = 3900;
+  var PRICE_YEARLY  = 39000;   // 월 환산 3,250원 · "2개월 무료"로 안내
+  function won(n) { return n.toLocaleString('ko-KR') + '원'; }
+
   var KEY = CFG.k('subs_v1');
   /* ⭐ 관리자 계정(사용자 요청 2026-09-02) — 현장매니저 subscription.js 의 users/{uid}.admin
      구조를 그대로 가져왔다. 부트스트랩(맨 처음 관리자 지정)만 이메일로 하고,
@@ -171,7 +179,8 @@
           '<div class="set-row"><div><div class="k">무료</div>' +
             '<div class="d">로그인하면 매달 글쓰기(PC 링크 포함) ' + FREE_MONTHLY + '회</div></div></div>' +
           '<div class="set-row"><div><div class="k">구독</div>' +
-            '<div class="d">글쓰기(PC 링크 포함) 무제한 + 클라우드 백업 · 월 3,000~5,000원대 예정</div></div></div>' +
+            '<div class="d">글쓰기(PC 링크 포함) 무제한 + 클라우드 백업<br>' +
+              '월 ' + won(PRICE_MONTHLY) + ' · 연 ' + won(PRICE_YEARLY) + '(2개월 무료)</div></div></div>' +
         '</div>' +
         (Cloud.ready ? '' :
           '<div class="notice">지금은 로그인을 켤 수 없어 <b>맛보기 횟수까지만</b> 쓸 수 있습니다.<br>' +
