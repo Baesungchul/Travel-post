@@ -221,7 +221,8 @@
     q('#acDel', function () { openDeleteAccount(); });
     q('#bkOpen', function () { Backup.openSheet(); });
     q('#cbPush', function () {
-      if (!Subs.gateFeature('cloudbackup')) return;
+      /* ★ 2026-09-03 사용자 확정: 클라우드 백업은 구독 혜택으로 안 판다 — 로그인한
+         사람이면 누구나 그대로 쓸 수 있게 잠금을 뺐다(subscription.js PAID_ONLY 참고). */
       CloudBackup.push().then(function (r) {
         showToast('올렸어요 — 장소 ' + r.places + ' · 사진 ' + r.photos +
                   (r.skipped ? ' (' + r.skipped + '장은 이미 있었음)' : '') +

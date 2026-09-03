@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════
-   subscription.js — 구독 게이트 (구조만, 결제 연결은 자리)
+   subscription.js — 구독 게이트 (요금제 단계 저장 구조 포함, 실제 결제 연결은 아직 자리)
    ----------------------------------------------------------------
    현장매니저 subscription.js 의 **뼈대만** 가져왔다.
      · 차감 순서: 쿠폰 → 월 한도 → 무료 지급분   (그대로)
@@ -14,8 +14,18 @@
       ⚠️ 서버 도장은 Firebase 키가 들어온 뒤에 켜진다. 그 전까지는 **기기 기준**이라
          무료 횟수를 크게 주지 않는다(아래 TRIAL).
 
-   ⬜ RevenueCat 연결은 실제 상품 등록 뒤에. 지금은 Subs.isPaid() 가 늘 false 다.
-      "구독하기"를 누르면 아직 준비 중이라고 정직하게 말한다 — 결제창을 흉내내지 않는다.
+   ⭐ 요금제 단계(사용자 확정 2026-09-03) — 3단계 + 광고형 무료.
+      "광고 시청 = 사실상 무제한"이라, 구독이 파는 건 더 이상 '더 많은 양'이 아니라
+      '매번 광고 안 보고 바로 쓰는 편함'이다. 그래서 요금제 단계는 users/{uid}.plan 에
+      **서버에 저장**한다 — admin 필드와 완전히 같은 패턴이다(pullServerState 참고).
+      ⚠️ firestore.rules 도 'plan' 필드를 'admin' 과 똑같이 보호한다 — 본인이 직접
+         자기 문서에 plan 을 못 바꾸게 막아야 한다(안 막으면 누구나 공짜로 구독 등급을
+         자기한테 줄 수 있다). 아직 실제 결제가 없어서, 지금은 관리자가 수동으로만
+         내려준다(Subs.openUserAdmin 화면에 요금제 선택 추가).
+
+   ⬜ RevenueCat/Google Play 정기결제 연동은 실제 상품 등록 뒤에. 지금은 요금제를 관리자가
+      수동으로만 내려줄 수 있다. "구독하기"를 누르면 아직 준비 중이라고 정직하게 말한다 —
+      결제창을 흉내내지 않는다.
 ═══════════════════════════════════════════════════════════ */
 (function () {
   'use strict';
@@ -25,23 +35,37 @@
   /* 기준값 (설계안 8장 초안) */
   var TRIAL_FREE   = 3;     // 로그인 전 맛보기 — 기기 기준이라 적게
   var FREE_MONTHLY = 5;     // 로그인 무료: 월 5회 글 생성 (2026-09-03 사용자 확정 — 아래 광고 정책과 짝)
-  var PAID_MONTHLY = 999999;// 유료: 사실상 무제한
   var KIND_LABEL = { post: '글 생성' };
-
-  /* ⭐ 구독 요금 (사용자 확정 2026-09-03) — 단일 구독 한 단계만 둔다.
-     · 월 3,900원 · 연 39,000원(월 3,900원 x 10개월 값 = 2개월 무료, 약 17% 할인)
-     ⬜ 아직 결제 연동 전이라 여기 숫자는 화면 문구용이다. 실제 상품(Google Play 정기결제 등)
-        등록·심사가 끝나면 Subs.isPaid() 를 그 결제 상태와 연결한다. */
-  var PRICE_MONTHLY = 3900;
-  var PRICE_YEARLY  = 39000;   // 월 환산 3,250원 · "2개월 무료"로 안내
   function won(n) { return n.toLocaleString('ko-KR') + '원'; }
 
-  /* ⭐ 광고형 추가 사용권 (사용자 확정 2026-09-03, 아직 미구현)
-     매달 무료 5회를 다 쓴 뒤에는 리워드 광고를 보고 계속 쓸 수 있게 한다 — 구독 안 해도
-     완전히 막히지는 않되, 매번 광고를 보는 번거로움이 구독 전환을 유도한다.
+  /* ⭐ 구독 요금제 3단계 (사용자 확정 2026-09-03)
+     회당 단가를 90원 선으로 맞췄다 — 이전엔 30/50/100회가 회당 단가가 거의 같아서(96.7·98·99원)
+     큰 요금제를 살 이유가 약했다. 이번엔 위 단계로 갈수록 확실히 싸지게 잡았다.
+       · 30회  2,700원 (회당 90.0원)
+       · 100회 8,900원 (회당 89.0원)
+       · 무제한 34,900원 — 표시는 '무제한'이지만 내부적으로는 월 600회 안전판을 둔다.
+         (통신사 '무제한 요금제'의 페어유즈 정책과 같은 개념. 500회 넘게 쓰는 사람은
+         거의 없을 거라는 사용자 전제에 20% 여유를 얹었다. 화면엔 이 숫자를 보여주지
+         않는다 — 실제로 이 상한에 걸리는 사람은 거의 없어야 정상이다.)
+     연 요금 = 월 요금 x 10개월 값(12개월 결제하면 2개월 무료 — 사용자 확정 2026-09-03).
+     클라우드 백업은 요금제에서 뺐다(사용자 확정 2026-09-03, 상품화 안 함) — cloud_backup.js
+     기능 자체는 남겨 두고 로그인한 사람 누구나 그대로 쓸 수 있게 둔다(ui_settings.js 참고).
+     ⬜ 아직 결제 연동 전이라 여기 숫자는 화면 문구·수동 지정용이다. 실제 상품(Google Play
+        정기결제 등) 등록·심사가 끝나면 결제 콜백이 Subs 서버 쪽 plan 필드를 채우게 연결한다. */
+  var PLANS = {
+    t30:  { id: 't30',  label: '30회 구독',   monthly: 30,  price: 2700,  priceYearly: 27000 },
+    t100: { id: 't100', label: '100회 구독',  monthly: 100, price: 8900,  priceYearly: 89000 },
+    unl:  { id: 'unl',  label: '무제한 구독', monthly: 600, price: 34900, priceYearly: 349000, unlimited: true }
+  };
+  var PLAN_ORDER = ['t30', 't100', 'unl'];
+  function planOf(S) { return (S && S.plan && PLANS[S.plan]) || null; }
+
+  /* ⭐ 광고형 추가 사용권 (사용자 확정 2026-09-03/04, 아직 미구현)
+     매달 무료 5회를 다 쓴 뒤에는 리워드 광고를 보고 **사실상 무제한**으로 계속 쓸 수 있다 —
+     구독 안 해도 완전히 막히지는 않되, 매번 광고를 보는 번거로움이 구독 전환을 유도한다.
        · 글 생성 1회 = 리워드 광고 2편 (AI 호출 원가가 있어 2편 필요 — 수익성 분석 참고)
        · PC 링크 1회 = 리워드 광고 1편 (AI 를 안 쓰고 사진 저장만 하므로 원가가 훨씬 낮다)
-     구독자에게는 광고를 아예 보여주지 않는다.
+     구독자에게는 광고를 아예 보여주지 않는다(상시 배너 포함 — ui_settings.js/기록 탭 참고).
      ⬜ AdMob 등 광고 SDK가 아직 앱에 없어서(package.json 확인됨) 이 값은 설계만 확정된
         상태다. 광고 계정·광고 단위 ID가 준비되면 실제 "광고 보고 계속 쓰기" 흐름을 붙인다 —
         그 전까지는 결제와 마찬가지로 없는 기능을 있는 척하지 않는다. */
@@ -68,24 +92,29 @@
     if (!S.coupon) S.coupon = { post: 0, exp: 0 };
     if (S.coupon.exp && Date.now() > S.coupon.exp) S.coupon = { post: 0, exp: 0 };
     if (S.admin == null) S.admin = false;
+    if (!S.plan || !PLANS[S.plan]) S.plan = 'free';
     return S;
   }
   function save(S) { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
 
-  Subs.isPaid = function () {
-    /* ⬜ 결제 연결 전 — 늘 false. 흉내내지 않는다. */
-    return false;
-  };
+  Subs.isPaid = function () { return !!planOf(load()); };
   Subs.loggedIn = function () { return !!(window.Cloud && Cloud.loggedIn()); };
   Subs.isAdmin = function () { return !!load().admin; };
+  Subs.planId = function () { return load().plan; };  // 'free' | 't30' | 't100' | 'unl'
 
-  /* 로그인 상태가 바뀔 때마다 서버의 진짜 admin 값을 당겨 온다(캐시 최신화).
+  /* 로그인 상태가 바뀔 때마다 서버의 진짜 admin·plan 값을 당겨 온다(캐시 최신화).
      같은 김에 users/{uid}.email 도 맞춰 둔다 — 관리자가 이메일로 사용자를 찾으려면
-     그 필드가 있어야 한다(현장매니저는 shareCode 라는 이름을 썼지만 여기선 그대로 email). */
-  function pullAdmin() {
+     그 필드가 있어야 한다(현장매니저는 shareCode 라는 이름을 썼지만 여기선 그대로 email).
+     ⚠️ plan 은 admin 과 똑같이 서버가 정답이다 — 기기 localStorage 는 캐시일 뿐이고,
+        본인이 직접 자기 문서의 plan 을 못 바꾸게 firestore.rules 가 막는다. 안 막으면
+        누구나 개발자 도구로 자기한테 '무제한 구독'을 공짜로 줄 수 있다. */
+  function pullServerState() {
     if (!Subs.loggedIn()) {
       var S0 = load();
-      if (S0.admin) { S0.admin = false; save(S0); }
+      var changed0 = false;
+      if (S0.admin) { S0.admin = false; changed0 = true; }
+      if (S0.plan !== 'free') { S0.plan = 'free'; changed0 = true; }
+      if (changed0) save(S0);
       return;
     }
     var uid = Cloud.uid();
@@ -96,26 +125,28 @@
         Cloud.db().collection('users').doc(uid).set({ email: email }, { merge: true }).catch(function () {});
       }
       var S = load();
-      var was = !!S.admin;
+      var wasAdmin = !!S.admin, wasPlan = S.plan;
       S.admin = (d.admin === true);
+      S.plan = (d.plan && PLANS[d.plan]) ? d.plan : 'free';
       save(S);
-      if (was !== S.admin) { try { if (window.UI && UI.refresh) UI.refresh(); } catch (e) {} }
-    }).catch(function (e) { console.warn('[Subs] 관리자 상태 확인 실패', e && e.code); });
+      if (wasAdmin !== S.admin || wasPlan !== S.plan) { try { if (window.UI && UI.refresh) UI.refresh(); } catch (e) {} }
+    }).catch(function (e) { console.warn('[Subs] 서버 상태 확인 실패', e && e.code); });
   }
-  try { if (window.Cloud && Cloud.onChange) Cloud.onChange(pullAdmin); } catch (e) {}
+  try { if (window.Cloud && Cloud.onChange) Cloud.onChange(pullServerState); } catch (e) {}
 
-  /* 남은 횟수 {coupon, monthly, trial, total} */
+  /* 남은 횟수 {coupon, monthly, trial, total, cap} — cap 은 이번 달 기준(무료 5 또는 요금제 한도) */
   Subs.quota = function (kind) {
     kind = kind || 'post';
     var S = load();
     var coupon = (S.coupon.exp > Date.now()) ? Math.max(0, S.coupon[kind] || 0) : 0;
-    if (Subs.isPaid()) return { coupon: coupon, monthly: PAID_MONTHLY, trial: 0, total: PAID_MONTHLY };
     if (!Subs.loggedIn()) {
       var trial = Math.max(0, TRIAL_FREE - (S.trialUsed || 0));
-      return { coupon: coupon, monthly: 0, trial: trial, total: coupon + trial };
+      return { coupon: coupon, monthly: 0, trial: trial, total: coupon + trial, cap: 0 };
     }
-    var monthly = Math.max(0, FREE_MONTHLY - (S.used[kind] || 0));
-    return { coupon: coupon, monthly: monthly, trial: 0, total: coupon + monthly };
+    var pl = planOf(S);
+    var cap = pl ? pl.monthly : FREE_MONTHLY;
+    var monthly = Math.max(0, cap - (S.used[kind] || 0));
+    return { coupon: coupon, monthly: monthly, trial: 0, total: coupon + monthly, cap: cap };
   };
 
   /* 쓸 수 있는지 — {ok, msg} */
@@ -127,15 +158,19 @@
       return { ok: false, msg: KIND_LABEL[kind] + '은 로그인 후에 쓸 수 있어요. 로그인하면 매달 ' +
                               FREE_MONTHLY + '회를 무료로 드려요.' };
     }
+    if (Subs.isPaid()) {
+      return { ok: false, msg: '이번 달 ' + planOf(load()).label + ' 한도를 다 썼어요. 다음 달 1일에 다시 채워집니다.' };
+    }
     return { ok: false, msg: '이번 달 ' + KIND_LABEL[kind] + ' 무료 ' + FREE_MONTHLY +
-                             '회를 다 썼어요. 다음 달 1일에 다시 채워집니다.' };
+                             '회를 다 썼어요. 다음 달까지 기다리거나 구독하면 광고 없이 계속 쓸 수 있어요.' };
   };
 
-  /* 사용 1회 차감 — 쿠폰 → 월 한도 → 맛보기 (현장매니저와 같은 순서) */
+  /* 사용 1회 차감 — 쿠폰 → 월 한도 → 맛보기 (현장매니저와 같은 순서).
+     ⚠️ 구독자도 이제 월 한도가 있으니(요금제별로 30/100/600) S.used 를 그대로 쌓는다 —
+        예전처럼 isPaid() 라고 차감을 건너뛰지 않는다. */
   Subs.use = function (kind) {
     kind = kind || 'post';
     var S = load();
-    if (Subs.isPaid()) { save(S); return; }
     if (S.coupon.exp > Date.now() && (S.coupon[kind] || 0) > 0) { S.coupon[kind]--; save(S); return; }
     if (Subs.loggedIn()) { S.used[kind] = (S.used[kind] || 0) + 1; save(S); return; }
     S.trialUsed = (S.trialUsed || 0) + 1; save(S);
@@ -144,9 +179,13 @@
   /* 화면에 뿌릴 한 줄 */
   Subs.label = function (kind) {
     kind = kind || 'post';
-    if (Subs.isPaid()) return '무제한';
     var q = Subs.quota(kind);
     if (!Subs.loggedIn()) return KIND_LABEL[kind] + '은 로그인 후 이용 가능해요 (로그인하면 매달 ' + FREE_MONTHLY + '회 무료)';
+    if (Subs.isPaid()) {
+      var pl = planOf(load());
+      if (pl.unlimited) return pl.label + ' · 이번 달 계속 쓸 수 있어요';
+      return pl.label + ' · 이번 달 ' + q.monthly + '/' + pl.monthly + '회 남음';
+    }
     return '이번 달 ' + q.monthly + '/' + FREE_MONTHLY + '회 남음' + (q.coupon ? ' + 쿠폰 ' + q.coupon + '회' : '');
   };
 
@@ -158,10 +197,12 @@
         글쓰기횟수와 연동해서 쓸수있게해줘." — 결제가 아직 없어(Subs.isPaid() 는 늘 false)
         PAID_ONLY 에 있던 기능은 사실상 영원히 못 쓰는 죽은 버튼이었다. pclink 는 여기서 뺐다
         → 아래 기본 분기(글 생성 횟수 = 'post')를 그대로 타서, 글쓰기와 같은 월 무료 횟수 풀을
-          같이 쓴다(만들 때마다 1회 차감 — share.js 의 openPc() 참고). 서버 저장·전송 비용이
-          나가는 기능이라 무제한으로 풀면 안 되지만, 안 열리는 유료 전용보다는 훨씬 낫다.
-        클라우드 백업은 서버 비용 구조가 달라(1회성이 아니라 계속 쌓이는 저장 공간) 그대로 둔다. */
-  var PAID_ONLY = { cloudbackup: '클라우드 백업' };
+          같이 쓴다(만들 때마다 1회 차감 — share.js 의 openPc() 참고).
+        ★ 2026-09-03 사용자 확정: 클라우드 백업은 요금제 혜택으로 안 판다. PAID_ONLY 가 이제
+          비어 있다(자리는 남겨 둔다 — 나중에 진짜 유료 전용 기능이 생기면 여기 추가).
+          cloud_backup.js 기능 자체는 그대로 있고, ui_settings.js 에서 로그인한 사람이면
+          누구나 쓸 수 있다(더 이상 gateFeature 로 안 잠근다). */
+  var PAID_ONLY = {};
 
   Subs.gateFeature = function (key, title, why) {
     if (PAID_ONLY[key]) {
@@ -188,15 +229,21 @@
         '<div class="lbl">예정 요금제 <span class="mini">(아직 결제를 열지 않았습니다)</span></div>' +
         '<div class="box">' +
           '<div class="set-row"><div><div class="k">무료</div>' +
-            '<div class="d">로그인하면 매달 글쓰기(PC 링크 포함) ' + FREE_MONTHLY + '회</div></div></div>' +
-          '<div class="set-row"><div><div class="k">구독</div>' +
-            '<div class="d">글쓰기(PC 링크 포함) 무제한 + 클라우드 백업<br>' +
-              '월 ' + won(PRICE_MONTHLY) + ' · 연 ' + won(PRICE_YEARLY) + '(2개월 무료)</div></div></div>' +
+            '<div class="d">로그인하면 매달 글쓰기(PC 링크 포함) ' + FREE_MONTHLY + '회<br>' +
+              '그 이후엔 광고를 보면 계속 쓸 수 있어요(준비 중)</div></div></div>' +
+          PLAN_ORDER.map(function (id) {
+            var pl = PLANS[id];
+            return '<div class="set-row"><div><div class="k">' + esc(pl.label) + '</div>' +
+              '<div class="d">글쓰기(PC 링크 포함) 월 ' + (pl.unlimited ? '무제한' : (pl.monthly + '회')) +
+                ' · 광고 없음<br>' +
+                '월 ' + won(pl.price) + ' · 연 ' + won(pl.priceYearly) + '(12개월 결제 시 10개월 값, 2개월 무료)' +
+              '</div></div></div>';
+          }).join('') +
         '</div>' +
         (Cloud.ready ? '' :
           '<div class="notice">지금은 로그인을 켤 수 없어 <b>맛보기 횟수까지만</b> 쓸 수 있습니다.<br>' +
           '<span class="mini">' + esc(Cloud.why) + '</span></div>') +
-        '<div class="mini">사진은 늘 기기에 남습니다. 구독을 안 해도 백업 ZIP 은 언제든 만들 수 있어요.</div>',
+        '<div class="mini">사진은 늘 기기에 남습니다. 백업 ZIP·클라우드 백업은 구독 여부와 상관없이 언제든 쓸 수 있어요.</div>',
       /* ⚠️ 2026-08-28 실측으로 잡은 막다른 길:
            Firebase 키가 없을 때도 '로그인하기'가 떠 있어서, 누르면 "아직 못 켠다"는 창만 또 떴다.
            켤 수 없는 버튼은 아예 내리고, 왜 지금은 방법이 없는지 위에 적는다. */
@@ -307,9 +354,11 @@
     };
   };
 
-  /* ── 관리자: 다른 사용자에게 관리자 권한 주기/빼기 ──
-     이메일로 users 컬렉션을 찾는다 — pullAdmin() 이 로그인마다 email 필드를 맞춰 두므로
-     상대가 한 번이라도 로그인한 적이 있으면 찾아진다. */
+  /* ── 관리자: 다른 사용자에게 관리자 권한 주기/빼기 + 요금제 수동 지정 ──
+     이메일로 users 컬렉션을 찾는다 — pullServerState() 가 로그인마다 email 필드를 맞춰 두므로
+     상대가 한 번이라도 로그인한 적이 있으면 찾아진다.
+     ⭐ 2026-09-03: 실제 결제가 아직 없어서, 요금제(plan)는 지금은 관리자가 여기서 손으로만
+        내려줄 수 있다. firestore.rules 가 본인 스스로는 plan 을 못 바꾸게 막아 둔다. */
   Subs.openUserAdmin = function () {
     if (!Subs.loggedIn() || !Subs.isAdmin()) { showToast('관리자만 사용할 수 있습니다', 'err'); return; }
     var ov = overlay({
@@ -337,10 +386,18 @@
     inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') doFind(); });
     function render(uid, d) {
       var isAdm = d.admin === true;
+      var curPlan = (d.plan && PLANS[d.plan]) ? d.plan : 'free';
       box.innerHTML =
         '<div class="box"><div class="k">' + esc(d.email || uid) + (isAdm ? ' 👑' : '') + '</div>' +
         '<label class="chk" style="margin-top:8px;"><input type="checkbox" id="uaAdmin"' + (isAdm ? ' checked' : '') +
-          '><span>관리자 권한</span></label></div>';
+          '><span>관리자 권한</span></label>' +
+        '<label class="lbl" style="margin-top:10px;">요금제 <span class="mini">(결제 연동 전 — 수동 지정)</span></label>' +
+        '<select class="inp" id="uaPlan">' +
+          '<option value="free"' + (curPlan === 'free' ? ' selected' : '') + '>무료</option>' +
+          PLAN_ORDER.map(function (id) {
+            return '<option value="' + id + '"' + (curPlan === id ? ' selected' : '') + '>' + esc(PLANS[id].label) + '</option>';
+          }).join('') +
+        '</select></div>';
       var cb = box.querySelector('#uaAdmin');
       cb.onchange = function () {
         var on = cb.checked;
@@ -348,6 +405,14 @@
           showToast(on ? '관리자로 지정했어요' : '관리자 권한을 뺐어요', 'ok');
           if (uid === Cloud.uid()) { var S = load(); S.admin = on; save(S); UI.refresh(); }
         }).catch(function (e) { showToast('변경 실패: ' + ((e && e.code) || ''), 'err'); cb.checked = !on; });
+      };
+      var sel = box.querySelector('#uaPlan');
+      sel.onchange = function () {
+        var planId = sel.value;
+        Cloud.db().collection('users').doc(uid).set({ plan: planId }, { merge: true }).then(function () {
+          showToast('요금제를 ' + (PLANS[planId] ? PLANS[planId].label : '무료') + '(으)로 바꿨어요', 'ok');
+          if (uid === Cloud.uid()) { var S = load(); S.plan = planId; save(S); UI.refresh(); }
+        }).catch(function (e) { showToast('변경 실패: ' + ((e && e.code) || ''), 'err'); sel.value = curPlan; });
       };
     }
   };

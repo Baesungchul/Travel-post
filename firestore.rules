@@ -20,15 +20,21 @@ service cloud.firestore {
       return request.auth != null && request.auth.token.email == 'bsc500327@gmail.com';
     }
 
-    /* 사용자 데이터 — 본인 것은 본인이, admin 필드는 관리자(또는 부트스트랩 이메일)만 건드릴 수 있다 */
+    /* 사용자 데이터 — 본인 것은 본인이, admin·plan 필드는 관리자(또는 부트스트랩 이메일)만
+       건드릴 수 있다.
+       ★ 2026-09-03 요금제 단계 추가 — plan 필드를 admin 과 똑같이 지킨다. 안 막으면
+         본인이 자기 문서에 plan: 'unl' 을 직접 써서 공짜로 무제한 구독을 가질 수 있다.
+         admin 과 달리 plan 은 부트스트랩 예외를 두지 않는다(관리자만 내려줄 수 있다). */
     match /users/{uid} {
       allow get: if request.auth != null && (request.auth.uid == uid || isAdmin());
       allow list: if isAdmin();   // 관리자 권한 관리 화면에서 이메일로 검색할 때만
       allow create: if request.auth != null && request.auth.uid == uid
-                    && (!('admin' in request.resource.data) || request.resource.data.admin == false || isBootstrapAdmin());
+                    && (!('admin' in request.resource.data) || request.resource.data.admin == false || isBootstrapAdmin())
+                    && (!('plan' in request.resource.data) || request.resource.data.plan == 'free');
       allow update: if isAdmin()
                     || (request.auth != null && request.auth.uid == uid
-                        && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['admin']) || isBootstrapAdmin()));
+                        && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['admin']) || isBootstrapAdmin())
+                        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['plan']));
       allow delete: if false;
       match /{sub=**} {
         allow read, write: if request.auth != null && request.auth.uid == uid;
