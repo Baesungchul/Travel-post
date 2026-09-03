@@ -94,7 +94,7 @@
             과 같은 값을 넣는다(functions/index.js 의 revenuecatWebhook 참고 — 이 값은 여기
             config.js 가 아니라 서버에만 있어야 한다. .github/workflows/firebase-deploy.yml 이
             그 저장소 시크릿을 배포 때마다 Secret Manager 로 자동 동기화한다). */
-    REVENUECAT_ANDROID_KEY: 'TODO_REVENUECAT_ANDROID_KEY',
+    REVENUECAT_ANDROID_KEY: 'goog_VxsNKAhVzyqEAuiSXEgkjPdiGad',   // ⭐ 2026-09-03 설정 완료
 
     /* ── 광고 (AdMob, 2026-09-03 준비 시작) ──
        ⚠️ App ID·광고 단위 ID 는 전부 '공개 값'이라 코드에 그대로 적어도 안전하다(RevenueCat
