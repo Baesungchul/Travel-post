@@ -112,8 +112,13 @@
      · 좌표 변환은 map.getProjection().coordsFromContainerPoint() 로 한다 — 이 메서드는
        Map 객체가 아니라 Map 의 Projection 객체에 있다(카카오 공식 문서 예제 그대로).
        map 에 바로 호출하면 "not a function" 으로 조용히 실패한다.
-     ⚠️ 마커를 누르면 마커 자체가 이벤트를 먹어서, 마커 위에서는 이 롱프레스가 안 걸린다(지도 SDK 공통 동작). */
-  function attachLongPress(map, box) {
+     ⚠️ 마커를 누르면 마커 자체가 이벤트를 먹어서, 마커 위에서는 이 롱프레스가 안 걸린다(지도 SDK 공통 동작).
+
+     ★ 2026-09-03 사용자 요청: "주변맛집찾기 지도에서도 지도 눌러서 추가하는 기능 넣어줘" —
+        길게 누르는 판정 로직 자체는 render()/pick() 둘 다 똑같이 쓸 수 있어서, 누른 뒤에
+        뭘 할지만 세 번째 인자(onLongPress)로 받게 했다. 생략하면 기존처럼 addPlaceHere. */
+  function attachLongPress(map, box, onLongPress) {
+    onLongPress = onLongPress || addPlaceHere;
     var LP_MS = 550, MOVE_TOL = 32;
     var sx = 0, sy = 0, cx = 0, cy = 0, moved = false, timer = null, ripple = null;
     var CAP = { capture: true, passive: true };   /* 캡처 단계 + 스크롤 막지 않음 — 위 설명 참고 */
@@ -150,7 +155,7 @@
         hideRipple();
         if (moved) return;
         try {
-          addPlaceHere(toLatLng(cx, cy));   /* 손끝이 허용치 안에서 움직였다면 마지막 위치를 쓴다 */
+          onLongPress(toLatLng(cx, cy));   /* 손끝이 허용치 안에서 움직였다면 마지막 위치를 쓴다 */
         } catch (err) {
           showToast('새 기록을 시작하지 못했어요: ' + ((err && err.message) || err), 'err');
         }
@@ -186,6 +191,7 @@
   function addPlaceHere(latlng) {
     var pf = window.Profiles && Profiles.current();
     if (!pf) { if (window.UI && UI.openCategoryPicker) UI.openCategoryPicker(); return; }
+    discardEmptyDraft();
     var geo = { lat: latlng.getLat(), lng: latlng.getLng() };
     var wantAddr = !!(window.Geo && Geo.available());
     if (window.showOverlay) showOverlay('주소를 찾는 중...');
@@ -208,6 +214,28 @@
       if (window.hideOverlay) hideOverlay();
       showToast('새 기록을 만들지 못했어요: ' + ((e && e.message) || e), 'err');
     });
+  }
+
+  /* ★ 2026-09-03 사용자 요청: "작성에 내용을 기록하지 않은 상태... 저장하지 않으면
+     실제로 추가하지말고 삭제해줘" — 지도를 길게 눌러 새 기록을 열었다가(이때 주소·좌표는
+     자동으로 채워져 저장된다) 이름·사진·메모 등 사람이 실제로 넣은 내용 없이 지도를
+     다시 눌러 또 새 기록을 시작하면, 먼저 열려 있던 빈 껍데기가 저장소에 그대로 남았다
+     ("9월 3일 기록"처럼 정체 모를 카드로 쌓이던 문제와 같은 뿌리).
+     → 새로 만들기 직전에, 지금 열려 있는 장소를 확인해서 '사람이 넣은 내용이 없으면'
+        조용히 지운다. 잃을 내용이 없으니 되묻지 않는다.
+     ⚠️ Place.isBlank() 를 손대지 않는다 — 그 함수는 geo/address 도 '내용'으로 친다.
+        pick() 화면(주변맛집찾기)의 새 롱프레스는 주소만 채워도 정상적인 저장이어야
+        하므로, 여기서만 쓰는 더 좁은 판정을 따로 둔다. */
+  function discardEmptyDraft() {
+    var p = Place.current();
+    if (!p || !p.id) return;
+    var hasRealContent = !!(String(p.name || '').trim() ||
+                             String(p.memo || '').trim() ||
+                             (p.photos && p.photos.length) ||
+                             p.rating || p.tripId);
+    if (hasRealContent) return;
+    Place.clear();
+    Store.placeDelete(p.id).catch(function () {});
   }
 
   /* 지도를 못 쓸 때 — 흉내내지 않고, 지역별로 묶어서 보여준다 */
@@ -256,6 +284,34 @@
      고르는 방법은 '찍고 → 아래 막대에서 확인 → 채우기' 두 단계다.
      ⚠️ 마커를 누르자마자 채우면, 지도를 훑다가 잘못 눌렀을 때 이름이 엉뚱하게 바뀐다.
         되돌릴 수 있는 화면이 아니라(오버레이가 곧 닫힌다) 한 단계를 남겨 둔다. */
+  /* ★ 2026-09-03 사용자 요청: "주변맛집찾기 지도에서도 지도 눌러서 추가하는 기능 넣어줘" —
+     검색 결과가 없는 자리도 길게 눌러서 채울 수 있게 한다. addPlaceHere() 와 달리 여기는
+     새 장소를 만드는 게 아니라 '지금 채우고 있는 장소'를 채우는 것뿐이라 Place.create() 를
+     부르지 않는다 — 마커를 눌렀을 때와 똑같이 아래 막대에 주소를 띄우고 '채우기' 를
+     눌러야 실제로 채워지게 해서(바로 위 pick() 설명 참고: 지도를 훑다가 잘못 누르면
+     되돌릴 수 없다) 상호는 비워 두고 주소만 채운다. */
+  function pickHere(latlng, sel, opts) {
+    var geo = { lat: latlng.getLat(), lng: latlng.getLng() };
+    var wantAddr = !!(window.Geo && Geo.available());
+    sel.innerHTML = '<span class="mini">주소를 찾는 중...</span>';
+    (wantAddr ? Geo.reverse(geo) : Promise.resolve('')).then(function (addr) {
+      if (!addr) {
+        sel.innerHTML = '<span class="mini">지도에서 장소를 눌러 고르세요</span>';
+        showToast('이 위치의 주소를 찾지 못했어요. 다시 눌러보거나 이름으로 찾기를 써보세요.', 'err');
+        return;
+      }
+      var d = { name: '', address: addr, lat: geo.lat, lng: geo.lng };
+      sel.innerHTML =
+        '<div class="pf-sel-tx"><b>새 위치</b><span class="mini">' + esc(addr) + '</span></div>' +
+        '<button type="button" class="btn sm primary" id="pfMapUse">채우기</button>';
+      var btn = sel.querySelector('#pfMapUse');
+      if (btn) btn.onclick = function () { if (opts.onPick) opts.onPick(d); };
+    }).catch(function (e) {
+      sel.innerHTML = '<span class="mini">지도에서 장소를 눌러 고르세요</span>';
+      showToast('주소를 찾지 못했어요: ' + ((e && e.message) || e), 'err');
+    });
+  }
+
   function pick(container, items, opts) {
     opts = opts || {};
     var usable = (items || []).filter(function (d) { return d.lat && d.lng; });
@@ -274,7 +330,7 @@
 
     container.innerHTML =
       '<div class="pf-map" id="pfMapBox"></div>' +
-      '<div class="pf-sel" id="pfSel"><span class="mini">지도에서 장소를 눌러 고르세요</span></div>';
+      '<div class="pf-sel" id="pfSel"><span class="mini">지도에서 장소를 눌러 고르거나, 빈 자리를 길게 눌러 그 자리 주소로 채워요</span></div>';
 
     var box = container.querySelector('#pfMapBox');
     var sel = container.querySelector('#pfSel');
@@ -319,6 +375,7 @@
       });
 
       if (usable.length > 1 || (opts.center && opts.center.lat)) map.setBounds(bounds);
+      attachLongPress(map, box, function (latlng) { pickHere(latlng, sel, opts); });
     }).catch(function (e) {
       container.innerHTML = '<div class="notice">🗺 ' + esc(e.message) + '<br>' +
         '<b>목록</b>으로 골라 주세요.</div>';
