@@ -101,12 +101,31 @@
       });
   };
 
+  /* ── 배너 높이를 화면 레이아웃에 알려준다 (2026-09-05) ──
+     ☠️ 이 SDK 의 배너는 웹뷰를 밀어내지 않고 **위에 겹쳐서** 뜬다.
+        그래서 알려주지 않으면 헤더가 광고에 그대로 덮인다 — 실제로 그렇게 가려져 있었다.
+     bannerAdSizeChanged 로 오는 높이(dp = CSS px)를 --ad-h 에 넣으면 styles.css 의
+     .hdr 이 딱 그만큼 아래로 내려간다. 숨기거나 없애면 SDK 가 {0,0} 을 보내주므로
+     되돌리는 코드를 따로 쓰지 않는다(resumeBanner 도 실제 높이를 다시 보낸다). */
+  var _sizeHooked = false;
+  function setAdHeight(px) {
+    try { document.documentElement.style.setProperty('--ad-h', (px > 0 ? px : 0) + 'px'); } catch (e) {}
+  }
+  function hookBannerSize() {
+    if (_sizeHooked || !plugin()) return;
+    _sizeHooked = true;
+    try {
+      plugin().addListener('bannerAdSizeChanged', function (s) { setAdHeight((s && s.height) || 0); });
+    } catch (e) { _sizeHooked = false; }
+  }
+
   /* ── 상시 배너 (무료 사용자만 · 기록 탭에서만, tabbar.js 참고) ── */
   var _bannerOn = false;
   Ads.showBanner = function () {
     if (!Ads.available()) return Promise.resolve();
     return ensureInit().then(function () {
       var P = plugin();
+      hookBannerSize();
       if (_bannerOn) return P.resumeBanner().catch(function () {});
       return P.showBanner({
         adId: CFG.AD_UNIT_BANNER,
@@ -117,6 +136,7 @@
     }).catch(function (e) { console.warn('[Ads] 배너 실패', e && e.message); });
   };
   Ads.hideBanner = function () {
+    setAdHeight(0);   /* 이벤트가 늦게 와도 화면이 먼저 제자리로 */
     if (!_bannerOn) return Promise.resolve();
     return plugin().hideBanner().catch(function () {});
   };

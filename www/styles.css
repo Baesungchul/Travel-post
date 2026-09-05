@@ -24,6 +24,20 @@ html[data-mode="dark"]{
 [data-theme="cool"]{ --ac:#20627E; --ac2:#4C93B0; --soft:#E3EFF4; }
 [data-theme="mono"]{ --ac:#33393A; --ac2:#5E6768; --soft:#ECEEEE; }
 
+/* ── 화면 가장자리 여백(상태바·내비게이션 바·노치) ─────────────────────────
+   ★ 2026-09-05 실제로 가려진 것을 보고 고침: 상단은 배너 광고가 헤더를 덮고,
+     하단은 내비게이션 바가 탭바 글씨를 잘라먹고 있었다.
+   왜 이제야 생겼나: targetSdk 36 이라 안드로이드 15+ 에서 앱이 시스템 바 '아래까지'
+     그려진다(edge-to-edge 강제, 예전처럼 시스템이 밀어주지 않는다).
+   ☠️ 안드로이드 WebView 의 env(safe-area-inset-*) 는 **노치만** 반영하고 시스템 바는 안 잡는다.
+     캐패시터 8 이 그 값을 --safe-area-inset-* 로 따로 넣어주므로 **둘 중 큰 값**을 쓴다.
+     (캐패시터가 웹뷰를 직접 패딩하는 모드에서는 그 변수가 0 이라 자동으로 0 이 된다 — 이중 여백 없음) */
+:root{
+  --sa-top:    max(env(safe-area-inset-top,    0px), var(--safe-area-inset-top,    0px));
+  --sa-bottom: max(env(safe-area-inset-bottom, 0px), var(--safe-area-inset-bottom, 0px));
+  /* 상단 배너 광고 높이 — ads.js 가 실제 값으로 바꾼다(광고가 없으면 0). */
+  --ad-h: 0px;
+}
 *{ box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
 html{ height:100%; }
 /* ★ 2026-09-02, 세 번째 시도 — 이번엔 헤드리스 브라우저로 실측해서 진짜 원인을 잡았다.
@@ -37,13 +51,14 @@ html{ height:100%; }
          박스가 내용을 따라 자라서, padding-bottom 이 '내용 다음'에 실제로 자리를 차지한다. */
 body{ min-height:100%; font-family:'Noto Sans KR',sans-serif; background:var(--bg); color:var(--tx);
       font-size:var(--fs-base); overscroll-behavior-y:contain; }
-body{ padding-bottom:calc(96px + env(safe-area-inset-bottom)); }
+body{ padding-bottom:calc(96px + var(--sa-bottom)); }
 body.modal-open{ overflow:hidden; position:fixed; width:100%; }
 img{ max-width:100%; }
 button{ font-family:inherit; }
 
 /* ── 헤더 ── */
-.hdr{ background:var(--sf); border-bottom:1px solid var(--bd); padding:10px 14px;
+.hdr{ background:var(--sf); border-bottom:1px solid var(--bd);
+      padding:calc(10px + var(--sa-top) + var(--ad-h)) 14px 10px;
       display:flex; align-items:center; gap:10px; position:sticky; top:0; z-index:100; }
 .logo-ic{ width:36px; height:36px; border-radius:10px; flex:none; display:flex; align-items:center;
           justify-content:center; font-size:19px; background:linear-gradient(135deg,var(--ac),var(--ac2)); }
@@ -126,16 +141,16 @@ textarea.inp{ resize:vertical; min-height:78px; line-height:1.6; }
 #pnPostList .postOpen{ font-size:12px; }
 
 /* ── 탭바 ── */
-.tabbar{ position:fixed; left:0; right:0; bottom:0; height:60px; background:var(--sf);
+.tabbar{ position:fixed; left:0; right:0; bottom:0; height:calc(60px + var(--sa-bottom)); background:var(--sf);
          border-top:1px solid var(--bd); display:flex; z-index:200;
-         padding-bottom:env(safe-area-inset-bottom); }
+         padding-bottom:var(--sa-bottom); }
 .tab-item{ flex:1; border:0; background:none; color:var(--mu); display:flex; flex-direction:column;
            align-items:center; justify-content:center; gap:2px; font-size:10.5px; font-weight:700; cursor:pointer; }
 .tab-item .ic{ font-size:19px; line-height:1; }
 .tab-item.active{ color:var(--ac); }
 
 /* ── FAB ── */
-.fab{ position:fixed; right:16px; bottom:76px; width:56px; height:56px; border-radius:50%; border:0;
+.fab{ position:fixed; right:16px; bottom:calc(76px + var(--sa-bottom)); width:56px; height:56px; border-radius:50%; border:0;
       background:var(--ac); color:#fff; font-size:24px; z-index:150; display:none;
       box-shadow:0 6px 18px rgba(0,0,0,.22); }
 .fab.visible{ display:block; }
@@ -152,7 +167,7 @@ textarea.inp{ resize:vertical; min-height:78px; line-height:1.6; }
           color:var(--tx); font-size:14px; cursor:pointer; }
 .sheet-bd{ flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;
            -webkit-overflow-scrolling:touch; padding:14px 16px; }
-.sheet-ft{ flex:none; display:flex; gap:8px; padding:12px 16px; border-top:1px solid var(--bd); }
+.sheet-ft{ flex:none; display:flex; gap:8px; padding:12px 16px calc(12px + var(--sa-bottom)); border-top:1px solid var(--bd); }
 .sheet-ft .btn{ flex:1; justify-content:center; }
 @media (min-width:560px){
   .sheet-ov{ align-items:center; padding:24px; }
