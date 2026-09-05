@@ -139,6 +139,29 @@ stores.forEach(n => {
 });
 ok('백업이 스토어 ' + stores.length + '종을 모두 담음: ' + stores.join(', '));
 
+/* ⚠️ 2026-09-05: 앱 아이콘 그림이 네 곳에 흩어져 있다 —
+   www/icon.svg(웹·탭), www/icon-maskable.svg(홈 화면에 담을 때),
+   www/index.html(헤더), www/js/ui_settings.js(설정 맨 위).
+   안드로이드 런처 아이콘(mipmap PNG)은 이 도형으로 뽑은 것이라 여기서 어긋나면
+   **홈 화면 아이콘과 앱 안 아이콘이 다른 그림**이 된다 — 오류는 안 나고 조용히 어긋난다. */
+const MARK_BODY = 'M42 28 h24 l5 8 H37 Z';   /* 카메라 윗부분(뷰파인더 돌출) — 모든 판본에 똑같이 들어간다 */
+[['icon.svg', WWW], ['icon-maskable.svg', WWW], ['index.html', WWW]].forEach(([f, dir]) => {
+  if (read(path.join(dir, f)).indexOf(MARK_BODY) < 0)
+    bad(f + ' 의 앱 아이콘 도형이 다른 곳과 다릅니다 (홈 화면 아이콘과 앱 안 그림이 어긋납니다)');
+});
+if (read(path.join(JS, 'ui_settings.js')).indexOf(MARK_BODY) < 0)
+  bad('ui_settings.js 의 APP_MARK 도형이 다른 곳과 다릅니다');
+/* 런처 아이콘이 Capacitor 기본값으로 되돌아갔는지 — 기본 전경은 벡터 xml 이라 그 파일이 살아나면 신호다 */
+const AND = path.join(ROOT, 'android', 'app', 'src', 'main', 'res');
+if (fs.existsSync(path.join(AND, 'drawable-v24', 'ic_launcher_foreground.xml')))
+  bad('android drawable-v24/ic_launcher_foreground.xml 이 되살아났습니다 — Capacitor 기본 아이콘으로 되돌아간 상태입니다');
+['mdpi', 'hdpi', 'xhdpi', 'xxhdpi', 'xxxhdpi'].forEach(d => {
+  ['ic_launcher.png', 'ic_launcher_round.png', 'ic_launcher_foreground.png', 'ic_launcher_monochrome.png'].forEach(f => {
+    if (!fs.existsSync(path.join(AND, 'mipmap-' + d, f))) bad('런처 아이콘 mipmap-' + d + '/' + f + ' 가 없습니다');
+  });
+});
+if (!fails) ok('앱 아이콘이 웹·앱 안·런처 다섯 해상도까지 같은 그림');
+
 /* ── ⑥ 자리표시자 ── */
 console.log('\n[6] 아직 안 채운 설정값 (배포 전 확인)');
 const cfg = read(path.join(JS, 'config.js'));

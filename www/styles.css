@@ -507,3 +507,12 @@ body.cal-lock{ overflow:hidden; }
 .len-row #wLen.under,
 .len-row #wLen.over{ color:var(--slate); }
 .len-row #wLen.over-hard{ color:var(--wn); }
+
+/* 앱 마크 — 헤더·설정의 브랜드 자리에 들어가는 아이콘(index.html · ui_settings.js).
+   ⚠️ 담는 상자(.logo-ic / .set-brand-ic)가 이미 초록 배경이라, 마크는 흰색으로만 그린다.
+      렌즈·플래시는 칠하지 않고 뚫린 자리라 그 초록이 그대로 비친다 — 아이콘 파일과 같은 방식이다. */
+.brand-mk{ width:70%; height:70%; display:block; }
+/* ⚠️ 브랜드 상자는 테마색(--ac)이 아니라 **아이콘과 똑같은 초록**으로 고정한다.
+   화면 테마를 따뜻함/차가움으로 바꿔도 앱 아이콘 색은 안 바뀌기 때문이다 —
+   여기만 테마를 따라가면 홈 화면 아이콘과 앱 안 아이콘이 다른 색이 된다. */
+.logo-ic, .set-brand-ic{ background:linear-gradient(160deg,#5FA46F,#2F6B4F); }

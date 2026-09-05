@@ -1,7 +1,7 @@
 {
   "name": "찍고쓰다",
   "short_name": "찍고쓰다",
-  "description": "여행·맛집 사진을 찍으면 블로그·SNS 글이 완성되는 앱",
+  "description": "사진으로 쓰는 블로그 후기 — 찍으면 글이 완성됩니다",
   "start_url": "./index.html",
   "scope": "./",
   "id": "/travel-post/",

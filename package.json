@@ -7,6 +7,7 @@
     "check": "node tools/check.js",
     "setkeys": "node tools/setkeys.js",
     "smoke": "node tools/smoke.js",
+    "icons": "node tools/make-icons.js",
     "serve": "npx --yes serve www -l 5173"
   },
   "dependencies": {

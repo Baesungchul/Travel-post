@@ -16,6 +16,19 @@
      ⚠️ 각 섹션 내용·id는 그대로 두고 담는 그릇만 바꿨다 — 아래 바인딩 코드가 그 id들을
         그대로 찾아 쓴다. 다만 이제 열린 섹션만 DOM에 있으므로 직접 바인딩하던 곳들도
         전부 q()(있으면만 바인딩)로 통일했다. */
+  /* ⭐ 2026-09-05: 설정 맨 위 브랜드 줄의 아이콘.
+     예전엔 📷 이모지였는데, 이모지는 기기·안드로이드 버전마다 모양이 달라서
+     홈 화면의 진짜 아이콘과 다른 그림이 보였다 — 같은 그림을 직접 그린다.
+     ⚠️ www/icon.svg · android 의 mipmap 아이콘과 **같은 도형**이다. 하나만 고치면 어긋난다. */
+  var APP_MARK =
+    '<svg class="brand-mk" viewBox="0 0 108 108" aria-hidden="true">' +
+      '<path d="M42 28 h24 l5 8 H37 Z" fill="#fff"/>' +
+      '<rect x="18" y="36" width="72" height="46" rx="10" fill="#fff"/>' +
+      '<circle cx="54" cy="59" r="17" fill="#2F6B4F"/>' +
+      '<path d="M0 -22 C1.5 -6 6 -1.5 22 0 C6 1.5 1.5 6 0 22 C-1.5 6 -6 1.5 -22 0 C-6 -1.5 -1.5 -6 0 -22 Z" transform="translate(54,59) scale(.58)" fill="#fff"/>' +
+      '<circle cx="79" cy="45" r="3.5" fill="#9BD7B2"/>' +
+    '</svg>';
+
   var _accG = null, _accS = null;   // 열려 있는 큰 타이틀/소타이틀 — 재렌더돼도 유지(다시 접히지 않게)
 
   UI.renderSettings = function () {
@@ -206,7 +219,7 @@
       /* ⭐ 2026-09-05 사용자 요청: 위쪽 바에 있던 앱 아이콘·설명을 설정 안으로 옮겼다.
          설정 탭에서는 .hdr 을 숨기므로(styles.css) 상태바 여백도 여기서 받는다. */
       '<div class="set-brand">' +
-        '<div class="set-brand-ic">📷</div>' +
+        '<div class="set-brand-ic">' + APP_MARK + '</div>' +
         '<div class="set-brand-tx">찍고쓰다</div>' +
         '<div class="set-brand-sb">찍고 나오면 글이 완성돼 있어요</div>' +
       '</div>' +
