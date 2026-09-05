@@ -257,6 +257,18 @@ textarea.inp{ resize:vertical; min-height:78px; line-height:1.6; }
 
 /* ── 설정 2단 아코디언 (2026-09-02, 현장매니저 참고 — 카드 8개가 한꺼번에 펼쳐져 복잡하다는
    사용자 지적으로 큰 타이틀→소타이틀→내용 순으로 접었다. 한 번에 하나만 열린다) ── */
+/* ── 설정 탭: 위쪽 앱 이름 줄을 숨기고 브랜드를 설정 안으로 (2026-09-05) ──
+   ☠️ .hdr 이 상태바 여백(--sa-top)을 받고 있었다. 그냥 숨기면 내용이 상태바 밑으로 들어간다.
+      숨기는 대신 그 여백을 설정 패널이 대신 받는다. */
+body[data-tab="settings"] .hdr{ display:none; }
+body[data-tab="settings"] #pnSettings{ padding-top:calc(14px + var(--sa-top)); }
+.set-brand{ text-align:center; padding:6px 0 16px; }
+.set-brand-ic{ width:52px; height:52px; margin:0 auto 8px; border-radius:15px;
+               display:flex; align-items:center; justify-content:center; font-size:27px;
+               background:linear-gradient(135deg,var(--ac),var(--ac2)); }
+.set-brand-tx{ font-size:17px; font-weight:800; }
+.set-brand-sb{ font-size:11.5px; color:var(--mu); margin-top:3px; }
+
 /* ── 설정 맨 아래 줄 — 로그인/로그아웃 + 앱명·버전 (2026-09-05) ── */
 .set-foot{ display:flex; align-items:center; justify-content:center; gap:7px;
            padding:18px 4px 6px; font-size:11.5px; color:var(--mu); }

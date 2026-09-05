@@ -21,6 +21,9 @@
        탭 전환은 모든 화면이 지나는 길목이라, 여기서 한 번 풀어 주는 게 가장 확실하다. */
     if (window.Cal && Cal.unlock) Cal.unlock();
     _tab = name;
+    /* ⭐ 2026-09-05: 설정 탭에서는 위쪽 앱 이름 줄을 숨기고 설정 안에 브랜드 블록을 둔다
+       (사용자 요청 — 현장매니저처럼). CSS 가 분기할 수 있게 탭 이름을 body 에 적어 둔다. */
+    try { document.body.setAttribute('data-tab', name); } catch (e) {}
     Object.keys(PANEL).forEach(function (k) {
       var el = document.getElementById(PANEL[k]);
       if (el) el.classList.toggle('active', k === name);

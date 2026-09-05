@@ -188,6 +188,13 @@
 
     /* 미설정 값 안내는 그대로 맨 위에 항상 보여준다 — 접어 버리면 조용히 실패하는 기능이 생긴다 */
     el.innerHTML =
+      /* ⭐ 2026-09-05 사용자 요청: 위쪽 바에 있던 앱 아이콘·설명을 설정 안으로 옮겼다.
+         설정 탭에서는 .hdr 을 숨기므로(styles.css) 상태바 여백도 여기서 받는다. */
+      '<div class="set-brand">' +
+        '<div class="set-brand-ic">📷</div>' +
+        '<div class="set-brand-tx">찍고쓰다</div>' +
+        '<div class="set-brand-sb">찍고 나오면 글이 완성돼 있어요</div>' +
+      '</div>' +
       (miss.length ?
         '<div class="card">' +
           '<div class="sec-hd"><h2>⚙️ 아직 채우지 않은 설정</h2></div>' +
