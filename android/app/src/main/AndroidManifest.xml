@@ -60,6 +60,12 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
+    <!-- 폰 저장소 자동 백업(문서 폴더). API 29+ 는 권한 없이 되고, 28 이하에서만 필요하다.
+         현장매니저와 같은 선언이다 (2026-09-05). -->
+    <uses-permission
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="28" />
+
     <!-- 카메라가 없는 기기(태블릿 등)에서도 설치는 되게 한다. -->
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />

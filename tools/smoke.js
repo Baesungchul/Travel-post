@@ -95,7 +95,7 @@ const EXIFB64=makeExifJpegB64();
 
   await chk('앱 로드 (모듈 전부)', async()=>await page.evaluate(()=>
     [CFG&&'CFG',Profiles&&'Profiles',Store&&'Store',Photos&&'Photos',Exif&&'Exif',Cloud&&'Cloud',
-     Subs&&'Subs',Backup&&'Backup',CloudBackup&&'CloudBackup',MapView&&'MapView',ClaudeAI&&'ClaudeAI',Share&&'Share'].length+'개 모듈'));
+     Subs&&'Subs',Backup&&'Backup',AutoBackup&&'AutoBackup',MapView&&'MapView',ClaudeAI&&'ClaudeAI',Share&&'Share'].length+'개 모듈'));
   await chk('Firebase 상태 — 설정 여부와 안내가 맞는가', async()=>{
     const r=await page.evaluate(()=>({set:CFG.hasFirebase(), ready:!!Cloud.ready, why:Cloud.why||''}));
     must(r.ready===r.set, r.set?'키가 있는데 ready=false':'키가 없는데 ready=true');
@@ -345,13 +345,26 @@ const EXIFB64=makeExifJpegB64();
     must((await page.locator('#rcQ').count())===1,'목록 보기에 검색칸이 없음');
     return '완성글 '+hit+'건 걸림 · 기록은 목록 보기에서만';
   });
-  await chk('자동 백업 — 로그인 전에는 돌지 않는다', async()=>{
-    const r=await page.evaluate(()=>({on:AutoBackup.enabled(), stale:AutoBackup.staleInfo().never,
-      notice:AutoBackup.noticeHTML()}));
+  await chk('자동 백업 — 폰 저장소 · 브라우저에서는 못 한다고 말한다', async()=>{
+    const r=await page.evaluate(async()=>{
+      const out={on:AutoBackup.enabled(), avail:AutoBackup.available(), never:AutoBackup.staleInfo().never,
+                 notice:AutoBackup.noticeHTML(), err:''};
+      try { await AutoBackup.run('test'); } catch(e){ out.err=e.message||''; }
+      return out;
+    });
     must(r.on===true,'기본값이 꺼짐');
-    /* 로그인 전에는 클라우드 백업 안내를 띄우지 않는다 — 할 수 없는 일을 재촉하지 않는다 */
-    must(r.notice.indexOf('백업한 지')<0,'로그인 전인데 백업 재촉이 뜸');
-    return '기본 켬 · 로그인 전 재촉 없음';
+    /* ☠️ 브라우저에는 저장 폴더가 없다 — 조용히 실패하면 '백업된 줄 알고' 지내게 된다 */
+    must(r.avail===false,'브라우저인데 된다고 함');
+    must(/폰에서만/.test(r.err),'못 하는데 이유를 안 알려줌: '+r.err);
+    must(r.never===true,'한 적도 없는데 백업 기록이 있음');
+    /* 서버 백업을 걷어냈으므로 로그인·클라우드 이야기가 남아 있으면 안 된다 */
+    must(r.notice.indexOf('클라우드')<0,'클라우드 백업 문구가 남아 있음');
+    return '기본 켬 · 브라우저에서는 이유를 알림';
+  });
+  await chk('서버 백업 흔적이 남아 있지 않다', async()=>{
+    const r=await page.evaluate(()=>({cb:typeof window.CloudBackup, txt:document.body.innerText}));
+    must(r.cb==='undefined','CloudBackup 이 아직 로드됨');
+    return '클라우드 백업 코드 없음';
   });
 
   console.log('\n=== 2·3단계 스모크 ===');

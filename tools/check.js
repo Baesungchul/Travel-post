@@ -103,7 +103,8 @@ const gates = [
   ['share.js',    "Subs.gateFeature('pclink'", 'PC 링크 게이트'],
   ['ui_posts.js', "Subs.use('post')", '성공 후 차감'],
   ['backup.js',   "mode === 'merge'", '비파괴 복구(합치기)'],
-  ['cloud_backup.js', 'if (cur) { added.skipped++; continue; }', '클라우드 pull 이 로컬을 덮지 않음'],
+  ['auto_backup.js', "have[name]", '자동 백업이 증분(이미 있는 사진은 건너뜀)'],
+  ['auto_backup.js', "'DOCUMENTS'", '자동 백업이 앱 삭제에도 남는 폴더에 쓴다'],
   ['share.js',    "padStart(2, '0')", '공유 파일명 순번'],
   ['state.js',    "'ov-lock'", '오버레이 스크롤 잠금'],
   ['plans.js',    'pl.placeId', '계획 → 기록 연결'],
@@ -118,14 +119,16 @@ if (!fails) ok(gates.length + '개 안전장치 확인');
 /* ⚠️ 스토어를 새로 만들고 백업에 안 넣으면 백업이 **조용히** 그것만 빠뜨린다 */
 const storeSrc = read(path.join(JS, 'store.js'));
 const backupSrc = read(path.join(JS, 'backup.js'));
-const cloudSrc = read(path.join(JS, 'cloud_backup.js'));
+/* ★ 2026-09-05: 서버 백업을 걷어내고 폰 저장소 자동 백업으로 바꿨다(cloud_backup.js 삭제).
+   같은 규칙을 auto_backup.js 에 그대로 건다 — 스토어를 새로 만들면 여기에도 넣어야 한다. */
+const autoSrc = read(path.join(JS, 'auto_backup.js'));
 const stores = [...storeSrc.matchAll(/S_[A-Z]+\s*=\s*'(\w+)'/g)].map(m => m[1])
   .filter(n => n !== 'settings');
 stores.forEach(n => {
   if (backupSrc.indexOf(n + ':') < 0 && backupSrc.indexOf('Store.' + n.replace(/s$/, '') + 'All') < 0)
     bad('backup.js 가 스토어 "' + n + '" 를 담지 않습니다 — 백업에서 조용히 빠집니다');
-  if (cloudSrc.indexOf(n + ':') < 0 && cloudSrc.indexOf('Store.' + n.replace(/s$/, '') + 'All') < 0)
-    bad('cloud_backup.js 가 스토어 "' + n + '" 를 담지 않습니다');
+  if (autoSrc.indexOf(n + ':') < 0 && autoSrc.indexOf('Store.' + n.replace(/s$/, '') + 'All') < 0)
+    bad('auto_backup.js 가 스토어 "' + n + '" 를 담지 않습니다 — 자동 백업에서 조용히 빠집니다');
 });
 ok('백업이 스토어 ' + stores.length + '종을 모두 담음: ' + stores.join(', '));
 

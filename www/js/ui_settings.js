@@ -87,29 +87,32 @@
       '<div class="set-row"><div><div class="k">이 기기에 백업 파일 만들기</div>' +
         '<div class="d">사진·기록을 ZIP 하나로. <b>서버 없이 지금 바로</b> 됩니다</div></div>' +
         '<button class="btn sm primary sp" id="bkOpen">열기</button></div>' +
-      '<div class="set-row"><div><div class="k">클라우드 백업</div>' +
-        '<div class="d">' +
-          (Cloud.ready
-            ? (CloudBackup.lastAt() ? '마지막 ' + new Date(CloudBackup.lastAt()).toLocaleString('ko-KR') : '아직 올린 적 없음')
-            : esc(Cloud.why)) +
-        '</div></div>' +
-        (Cloud.ready
-          ? '<div class="sp"><button class="btn sm ghost" id="cbPull">받기</button> ' +
-            '<button class="btn sm primary" id="cbPush">올리기</button></div>'
-          : '') + '</div>' +
-      /* ⭐ 2026-09-05: 자동 백업 스위치. 기본은 켬 — 안 눌러도 지켜지는 게 백업의 요점이다.
-         ⚠️ 데이터 요금이 걱정되면 여기서 끈다(와이파이인지 앱이 확실히 알 수 없다). */
+      /* ★ 2026-09-05 사용자 지시: **서버 백업은 쓰지 않는다. 폰 저장소에만 백업한다.**
+         (클라우드 백업 코드는 통째로 걷어냈다 — cloud_backup.js 삭제) */
+      (window.AutoBackup && AutoBackup.available()
+        ? (function () {
+            var s = AutoBackup.staleInfo();
+            return '<div class="set-row"><div><div class="k">자동 백업 (폰 저장소)</div>' +
+              '<div class="d">' +
+                (s.never ? '아직 백업된 적 없음' :
+                  '마지막 ' + new Date(s.at).toLocaleString('ko-KR') + ' · 사진 ' + s.photos + '장') +
+              '</div></div>' +
+              '<div class="sp"><button class="btn sm ghost" id="abRestore">복구</button> ' +
+              '<button class="btn sm primary" id="abNow">지금 백업</button></div></div>';
+          })()
+        : '<div class="set-row"><div><div class="k">자동 백업 (폰 저장소)</div>' +
+            '<div class="d">폰에 설치한 앱에서만 됩니다 — 브라우저 미리보기에서는 저장 폴더를 쓸 수 없어요.</div>' +
+          '</div></div>') +
+      /* ⭐ 자동 백업 스위치. 기본은 켬 — 안 눌러도 지켜지는 게 백업의 요점이다. */
       (window.AutoBackup
         ? '<label class="chk" style="margin-top:10px;"><input type="checkbox" id="abOn"' +
-            (AutoBackup.enabled() ? ' checked' : '') + '><span>자동 백업 (로그인 상태에서 하루 한 번)</span></label>' +
-          '<div class="mini" style="margin-top:4px;">' +
-            (Cloud.loggedIn && Cloud.loggedIn()
-              ? (function () { var s = AutoBackup.staleInfo();
-                  return s.never ? '아직 올린 적이 없어요.' : '마지막 백업 ' + s.days + '일 전.'; })()
-              : '로그인하면 켜집니다.') +
-            ' 사진을 인터넷으로 올리므로 데이터를 씁니다.</div>'
+            (AutoBackup.enabled() ? ' checked' : '') + '><span>자동 백업 켜기</span></label>' +
+          '<div class="mini" style="margin-top:4px;">앱을 벗어날 때마다 <b>바뀐 것만</b> 폰의 ' +
+            '<b>문서 → jjikgo-backups</b> 폴더에 복사합니다. 인터넷도 로그인도 필요 없습니다.</div>'
         : '') +
-      '<div class="mini" style="margin-top:8px;">사진은 기기에 남습니다. 백업은 <b>기기 밖</b>에 두세요.</div>';
+      '<div class="mini" style="margin-top:8px;">☠️ 이 폴더는 <b>앱을 지워도 남습니다.</b> ' +
+        '다만 폰을 잃어버리면 같이 사라지니, 가끔 위 「백업 파일 만들기」로 ZIP 을 만들어 ' +
+        '드라이브·카톡 등 <b>기기 밖</b>에도 하나 두세요.</div>';
 
     /* ⭐ 관리자 전용(사용자 요청 2026-09-02) — 관리자일 때만 만들고, GROUPS 에도
        관리자일 때만 끼워 넣는다(아래). 현장매니저의 '쿠폰 발급 · 사용자 관리' 화면을
@@ -268,22 +271,25 @@
         UI.renderSettings();
       };
     })();
-    q('#cbPush', function () {
-      /* ★ 2026-09-03 사용자 확정: 클라우드 백업은 구독 혜택으로 안 판다 — 로그인한
-         사람이면 누구나 그대로 쓸 수 있게 잠금을 뺐다(subscription.js PAID_ONLY 참고). */
-      CloudBackup.push().then(function (r) {
-        showToast('올렸어요 — 장소 ' + r.places + ' · 사진 ' + r.photos +
-                  (r.skipped ? ' (' + r.skipped + '장은 이미 있었음)' : '') +
-                  (r.failed ? ' · 실패 ' + r.failed : ''), 'ok');
+    q('#abNow', function () {
+      showOverlay('폰 저장소에 백업하는 중...');
+      AutoBackup.run('manual').then(function (r) {
+        hideOverlay();
+        showToast('백업했어요 — 장소 ' + r.places + ' · 사진 ' + r.photos + '장 (새로 ' + r.added + '장)', 'ok');
         UI.renderSettings();
-      }).catch(function (e) { showToast(e.message, 'err'); });
+      }).catch(function (e) { hideOverlay(); showToast(e.message, 'err'); });
     });
-    q('#cbPull', function () {
-      CloudBackup.pull().then(function (a) {
-        showToast('받았어요 — 장소 ' + a.places + ' · 사진 ' + a.photos +
+    q('#abRestore', function () {
+      if (!confirm('폰에 저장된 자동 백업에서 되돌릴까요?\n\n지금 있는 기록은 지우지 않고 없는 것만 채웁니다.')) return;
+      showOverlay('자동 백업 읽는 중...');
+      AutoBackup.readBackup().then(function (r) {
+        return Backup.restore(r.zip, r.meta, 'merge');
+      }).then(function (a) {
+        hideOverlay();
+        showToast('되돌렸어요 — 장소 ' + a.places + ' · 사진 ' + a.photos +
                   (a.skipped ? ' (' + a.skipped + '건은 이미 있어 건너뜀)' : ''), 'ok');
         UI.refresh();
-      }).catch(function (e) { showToast(e.message, 'err'); });
+      }).catch(function (e) { hideOverlay(); showToast(e.message, 'err'); });
     });
     q('#subPlans', function () { Subs.openPlans('요금제', Subs.label('post')); });
     q('#adCoupon', function () { Subs.openCouponAdmin(); });
@@ -481,7 +487,7 @@
         '<input class="inp" id="lgEmail" type="email" autocomplete="username" placeholder="you@example.com">' +
         '<label class="lbl">비밀번호</label>' +
         '<input class="inp" id="lgPw" type="password" autocomplete="current-password" placeholder="6자 이상">' +
-        '<div class="mini" style="margin-top:10px;" id="lgWhy">로그인하면 매달 무료 글 생성 횟수를 드리고, 클라우드 백업을 쓸 수 있어요.</div>' +
+        '<div class="mini" style="margin-top:10px;" id="lgWhy">로그인하면 매달 무료 글 생성 횟수를 드립니다. 백업은 로그인 없이 폰에 자동으로 됩니다.</div>' +
         '<button class="btn sm ghost" id="lgReset" style="margin-top:10px;">비밀번호를 잊었어요</button>' +
         '<div style="display:flex;align-items:center;gap:8px;margin:14px 0 10px;">' +
           '<span style="flex:1;height:1px;background:var(--bd);"></span>' +
