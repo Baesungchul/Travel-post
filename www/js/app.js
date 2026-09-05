@@ -117,24 +117,14 @@ document.addEventListener('DOMContentLoaded', function () {
   /* 로그인 상태가 바뀌면 화면을 갱신한다 (무료 횟수·백업 버튼이 같이 바뀐다) */
   try { Cloud.onChange(function () { if (UI.refresh) UI.refresh(); }); } catch (e) {}
 
-  /* 앱을 열었을 때 로그인이 안 되어 있으면 로그인 화면을 먼저 보여준다 (사용자 요청 2026-09-01).
-     ⚠️ 강제로 막지는 않는다 — 다른 오버레이와 똑같이 ✕ 로 닫거나 바깥을 눌러 넘어갈 수 있다.
-        이 앱은 로그인 없이도 촬영·글쓰기·백업 ZIP 이 다 되는 게 설계 원칙이라(설계안 참고),
-        로그인은 "먼저 권하는 것"이지 "막는 것"이 아니다.
-     ☠️ Cloud.onChange 는 등록하는 순간 C.ready 면 곧바로 한 번 부른다 — 그런데 그 시점엔
-        firebase 가 기기에 남은 로그인 세션을 아직 안 읽어 온 상태(C.user 가 임시로 null)라
-        여기서 곧바로 판단하면 '이미 로그인된 사용자'한테도 로그인창이 잠깐 떴다 만다.
-        → 첫 번째 호출(임시값)은 건너뛰고, 두 번째 호출(세션 복원이 끝난 실제 값)에서만,
-           딱 한 번 판단한다. */
-  try {
-    var _authCalls = 0, _askedLogin = false;
-    Cloud.onChange(function () {
-      _authCalls++;
-      if (_authCalls < 2 || _askedLogin) return;
-      _askedLogin = true;
-      if (Cloud.ready && !Cloud.loggedIn() && UI.openLogin) UI.openLogin();
-    });
-  } catch (e) {}
+  /* ⭐ 2026-09-05 사용자 지시로 **첫 실행 로그인창을 없앴다.**
+     예전(2026-09-01)에는 앱을 열자마자 로그인창을 띄웠는데, 처음 온 사람에게는
+     '가입부터 해야 하는 앱' 으로 보여 그대로 나가버린다. 이 앱은 촬영·정리·글 뼈대·
+     ZIP 백업이 **로그인 없이 다 되는** 게 설계 원칙이다.
+     → 로그인은 **필요한 그 자리에서** 묻는다: 구독(subscription.js gateFeature),
+       AI 글 생성(ai.js NO_AUTH), 클라우드 백업·PC 링크. 각 화면이 이미 "왜 필요한지"를
+       적고 로그인 버튼을 띄우므로 여기서 미리 막을 이유가 없다.
+     ☠️ 되돌리지 말 것 — 되돌리면 smoke 검사도 다시 첫 화면에서 막힌다(로그인 시트가 FAB 을 가림). */
 
   console.log('[' + CFG.APP_NAME + '] 준비 완료 · v' + window.APP_VERSION);
 });

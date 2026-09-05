@@ -10,6 +10,33 @@
 (function () {
   'use strict';
   var UI = window.UI = window.UI || {};
+  var _q = '';   /* 완성글 검색어 — 다시 그려도 유지된다 (2026-09-05) */
+
+  /* ═══ 임시 보관 ═══════════════════════════════════════════
+     ☠️ 2026-09-05 이전에는 **AI 로 뽑은 글이 오탭 한 번에 사라졌다.**
+        차감은 생성 성공 시점에 이미 끝나 있는데(아래 Subs.use), 글 만들기 창은 ✕ 뿐 아니라
+        바깥 어두운 곳을 건드리기만 해도 닫히고, 닫으면 본문이 그대로 없어졌다.
+        = 돈이 나간 결과물이 실수 하나로 증발하는 구조였다.
+     → 생성 직후·글자를 고칠 때마다 기기에 임시 보관하고, 창이 닫힐 때도 한 번 더 보관한다.
+        다시 열면 이어서 쓴다. 저장(Store.postPut)이 끝나면 임시본은 지운다.
+     ⚠️ localStorage 라 용량이 작다 — 글 하나(수천 자)만 장소별로 둔다. 사진은 안 넣는다. */
+  function draftKey(placeId) { return CFG.k('draft_' + placeId); }
+  function draftSave(placeId, ch, text) {
+    if (!placeId) return;
+    try {
+      var t = String(text || '');
+      if (!t.trim()) { localStorage.removeItem(draftKey(placeId)); return; }
+      localStorage.setItem(draftKey(placeId), JSON.stringify({ ch: ch || '', text: t, at: Date.now() }));
+    } catch (e) { console.warn('[임시보관] 실패', e && e.message); }
+  }
+  function draftLoad(placeId) {
+    if (!placeId) return null;
+    try {
+      var r = JSON.parse(localStorage.getItem(draftKey(placeId)) || 'null');
+      return (r && r.text && String(r.text).trim()) ? r : null;
+    } catch (e) { return null; }
+  }
+  function draftClear(placeId) { try { localStorage.removeItem(draftKey(placeId)); } catch (e) {} }
 
   /* ── 사진 미리보기 ⇄ 글 고치기 토글 (사용자 요청 2026-09-05) ──
      ☠️ 편집 상자는 '숨기기'만 한다 — 지우면 저장·복사·공유가 읽을 값이 사라진다
@@ -80,8 +107,33 @@
         '<div class="mini" id="wHintCopy" style="margin-top:6px;"></div>',
       foot: '<button class="btn ghost" id="wSave">저장</button>' +
             '<button class="btn ghost" id="wCopy">📋 복사</button>' +
-            '<button class="btn primary" id="wShare">📤 올리기</button>'
+            '<button class="btn primary" id="wShare">📤 올리기</button>',
+      /* 어떤 방법으로 닫혀도 본문을 잃지 않는다 */
+      beforeClose: function () {
+        var ta = ov.querySelector('#wText');
+        var t = ta ? ta.value : '';
+        if (!t.trim()) return;
+        var saved = (existingPost && existingPost.text) || '';
+        if (t.trim() === saved.trim()) return;      // 이미 저장된 것과 같으면 남길 것이 없다
+        draftSave(p.id, chId, t);
+        showToast('임시 보관했어요 — 다시 열면 이어서 씁니다');
+      }
     });
+
+    /* 저장된 글이 없고 임시본이 있으면 되살린다 (앱이 꺼졌다 켜져도 남아 있다) */
+    (function () {
+      var ta = ov.querySelector('#wText');
+      if (!ta) return;
+      if (!(existingPost && String(existingPost.text || '').trim())) {
+        var d = draftLoad(p.id);
+        if (d) {
+          ta.value = d.text;
+          if (d.ch) chId = d.ch;
+          showToast('임시 보관해 둔 글을 불러왔어요');
+        }
+      }
+      ta.addEventListener('input', function () { draftSave(p.id, chId, ta.value); });
+    })();
 
     var wPv = bindPreview(ov, '#wText', '#wPv', '#wPvBtn', function () { return p; });
     /* 이미 글이 있는 채로 열렸으면(저장된 글 다시 열기) 곧바로 사진으로 보여준다 */
@@ -112,7 +164,9 @@
       if (!CFG.hasProxy()) { fillDraft(); showToast('프록시 미설정 — 뼈대 초안을 넣었어요'); return; }
       /* ⚠️ 게이트는 **호출 직전**에 본다. 비용이 나가는 지점이 여기다. */
       if (!Subs.gateFeature('post', 'AI 글 생성')) return;
-      showOverlay(trip ? '여행기 쓰는 중... (장소 ' + tripPlaces.length + '곳)' : '글 쓰는 중... (사진을 보고 있어요)');
+      showOverlay(trip ? '여행기 쓰는 중... (장소 ' + tripPlaces.length + '곳)' : '글 쓰는 중... (사진을 보고 있어요)',
+        /* 전파가 약한 곳에서 갇히지 않게 — 취소해도 횟수는 안 깎인다(차감은 성공 뒤) */
+        function () { if (ClaudeAI.cancel) ClaudeAI.cancel(); });
       var hint = ov.querySelector('#wHint').value.trim();
       var run = trip ? ClaudeAI.generateTripPost(chId, trip, tripPlaces, hint)
                      : ClaudeAI.generatePost(chId, hint, p);
@@ -124,10 +178,12 @@
         if (qe) qe.textContent = Subs.label('post');
         aiRaw = t;
         ov.querySelector('#wText').value = t;
+        draftSave(p.id, chId, t);   /* ☠️ 차감이 끝난 결과물이다 — 화면에만 두지 않는다 */
         wPv.show(true);   /* 마커 대신 사진이 박힌 화면으로 — 고치려면 '✏️ 글 고치기' */
         showToast('썼어요. 고쳐서 저장하면 다음 글이 이 말투를 따라갑니다', 'ok');
       }).catch(function (e) {
         hideOverlay();
+        if (e.code === 'CANCELLED') return;              /* 사용자가 스스로 멈춘 것 — 오류가 아니다 */
         if (e.code === 'NO_PROXY' || e.code === 'NO_AUTH') {
           fillDraft();
           showToast(e.message + ' — 뼈대 초안을 넣었어요', 'err');
@@ -144,11 +200,12 @@
       if (aiRaw) ClaudeAI.saveCorrection(chId, aiRaw, t);
       if (existingPost) {
         existingPost.text = t; existingPost.ch = chId; existingPost.updatedAt = Date.now();
-        return Store.postPut(existingPost).then(function () { return existingPost; });
+        return Store.postPut(existingPost).then(function () { draftClear(p.id); return existingPost; });
       }
       return ClaudeAI.savePost(p.id, chId, t, aiRaw).then(function (rec) {
         if (trip) { rec.kind = 'trip'; rec.title = trip.name; Store.postPut(rec); }
         existingPost = rec;
+        draftClear(p.id);          /* 진짜로 저장됐으니 임시본은 지운다 */
         return rec;
       });
     }
@@ -195,6 +252,14 @@
   UI.openShareChooser = openShareChooser;
 
   /* ── 「글」 탭 ── */
+  /* 검색칸은 다시 그려도 커서가 튀지 않게 값·포커스를 되살린다 */
+  function bindQ() {
+    var q = document.getElementById('poQ');
+    if (!q) return;
+    q.oninput = function () { _q = q.value; UI.renderPosts(); };
+    if (_q) { try { q.focus(); q.setSelectionRange(q.value.length, q.value.length); } catch (e) {} }
+  }
+
   UI.renderPosts = function () {
     var el = document.getElementById('pnPosts');
     if (!el) return;
@@ -207,7 +272,26 @@
           '아직 저장한 글이 없어요.<br><span class="mini">「작성」 탭에서 글을 만들면 여기에 쌓입니다.</span></div>';
         return;
       }
-      el.innerHTML = '<div class="card">' + posts.map(function (o) {
+      /* ⭐ 2026-09-05: 글이 쌓이면 스크롤로만 찾아야 했다 — 본문·장소·채널을 한 번에 훑는다.
+         글자를 칠 때마다 다시 그리므로(입력칸은 살려 둔다) 목록이 바로 좁혀진다. */
+      var qq = _q.trim().toLowerCase();
+      var shown = !qq ? posts : posts.filter(function (o) {
+        var pl = places[o.placeId] || {};
+        var hay = [o.text, pl.name, pl.area, ClaudeAI.channel(o.ch).label].join(' ').toLowerCase();
+        return hay.indexOf(qq) >= 0;
+      });
+      var searchHTML =
+        '<div class="srch"><input class="inp" id="poQ" type="search" placeholder="글·장소·채널 검색" value="' +
+          esc(_q) + '">' +
+        (qq ? '<div class="mini" style="margin-top:6px;">' + shown.length + '건 찾음 (전체 ' + posts.length + ')</div>' : '') +
+        '</div>';
+      if (!shown.length) {
+        el.innerHTML = searchHTML + '<div class="empty"><div style="font-size:34px;margin-bottom:10px;">🔍</div>' +
+          '찾는 글이 없어요.<br><span class="mini">다른 낱말로 찾아보세요.</span></div>';
+        bindQ();
+        return;
+      }
+      el.innerHTML = searchHTML + '<div class="card">' + shown.map(function (o) {
         var pl = places[o.placeId] || {};
         var ch = ClaudeAI.channel(o.ch);
         var head = String(o.text || '').split('\n').filter(Boolean)[0] || '(빈 글)';
@@ -218,6 +302,7 @@
             (o.published ? '<span class="badge">발행</span>' : '') + '</div></div>' +
           '<div class="rt">' + new Date(o.createdAt).toLocaleDateString('ko-KR') + '</div></div>';
       }).join('') + '</div>';
+      bindQ();
 
       el.querySelectorAll('.postRow').forEach(function (row) {
         row.onclick = function () {
@@ -254,7 +339,14 @@
           (post.published ? ' checked' : '') + '><span>발행 완료로 표시</span></label>',
       foot: '<button class="btn danger sm" id="poDel">삭제</button>' +
             '<button class="btn ghost" id="poCopy">📋 복사</button>' +
-            '<button class="btn primary" id="poShare">📤 올리기</button>'
+            '<button class="btn primary" id="poShare">📤 올리기</button>',
+      /* 고쳐 놓고 그냥 닫아도 잃지 않는다 (2026-09-05) */
+      beforeClose: function () {
+        try {
+          var ta = ov.querySelector('#poText');
+          if (ta && ta.value !== post.text) { commit(); UI.refresh(); }
+        } catch (e) {}
+      }
     });
     var poPv = bindPreview(ov, '#poText', '#poPv', '#poPvBtn', function () { return place; });
     if (String(post.text || '').trim()) poPv.show(true);   /* 완성글은 사진이 보이는 쪽이 기본 */

@@ -29,17 +29,24 @@
 
   /* ── 진행 오버레이 ── */
   var _ovEl = null;
-  function showOverlay(msg) {
+  /* onCancel 을 주면 '취소' 글자가 같이 뜬다 (2026-09-05).
+     ☠️ 전파가 약한 곳(지하 식당·여행지)에서 AI 호출이 안 끝나면 예전엔 스피너만 돌고
+        빠져나올 길이 없었다. 취소가 없으면 앱을 강제 종료하는 수밖에 없다. */
+  function showOverlay(msg, onCancel) {
     if (!_ovEl) {
       _ovEl = document.createElement('div');
       _ovEl.id = 'busy';
       _ovEl.className = 'ov-lock';
       _ovEl.innerHTML = '<div class="busy-box"><div class="spin"></div>' +
-        '<div class="busy-msg"></div><div class="busy-bar"><i></i></div></div>';
+        '<div class="busy-msg"></div><div class="busy-bar"><i></i></div>' +
+        '<button type="button" class="busy-cancel" style="display:none;">취소</button></div>';
       document.body.appendChild(_ovEl);
     }
     _ovEl.querySelector('.busy-msg').textContent = msg || '처리 중...';
     _ovEl.querySelector('.busy-bar i').style.width = '0%';
+    var cx = _ovEl.querySelector('.busy-cancel');
+    cx.style.display = onCancel ? '' : 'none';
+    cx.onclick = onCancel || null;
     _ovEl.style.display = 'flex';
     lock();
   }
@@ -122,6 +129,10 @@
       '</div>';
     document.body.appendChild(ov);
     var close = function () {
+      /* ⭐ 2026-09-05: 닫히기 직전에 한 번 불린다. 창을 닫아 내용이 사라지는 것을 막는 자리다.
+         ☠️ ✕ 와 '바깥 어두운 곳 탭' 둘 다 이 함수를 쓴다 — ov.close 를 덮어써 봐야 안 걸린다.
+            그래서 훅을 여기 안에 둔다. 훅에서 오류가 나도 창은 반드시 닫는다. */
+      if (opts.beforeClose) { try { opts.beforeClose(); } catch (e) { console.warn('[overlay] beforeClose', e); } }
       if (ov.parentNode) ov.parentNode.removeChild(ov);
       var idx = _ovStack.indexOf(ov);
       if (idx !== -1) _ovStack.splice(idx, 1);

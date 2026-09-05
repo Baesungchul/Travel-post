@@ -43,3 +43,6 @@ android/.idea/
 # 로그
 npm-debug.log*
 *.log
+
+# smoke 검사가 남기는 화면 캡처 (검사할 때마다 새로 생긴다 — 커밋할 것 없음)
+tools/shot_*.png

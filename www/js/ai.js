@@ -22,6 +22,8 @@
 ═══════════════════════════════════════════════════════════ */
 (function () {
   'use strict';
+
+  var _abortCtl = null;   /* 진행 중인 AI 호출 (취소·시간제한용, 2026-09-05) */
   window.ClaudeAI = window.ClaudeAI || {};
   var AI = window.ClaudeAI;
 
@@ -283,10 +285,38 @@
       e2.code = 'NO_AUTH';
       throw e2;
     }
+    /* ⭐ 2026-09-05: 시간 제한 + 취소 + 오프라인 선차단.
+       ☠️ 예전에는 아무 제한이 없어서, 전파가 약하면 fetch 가 안 끝나고 스피너만 계속 돌았다.
+          호출부(ui_posts.js)가 AI.cancel() 로 끊을 수 있게 컨트롤러를 밖에 걸어 둔다. */
+    if (navigator && navigator.onLine === false) {
+      var eOff = new Error('인터넷이 끊겨 있어요. 연결된 뒤에 다시 해주세요.');
+      eOff.code = 'OFFLINE';
+      throw eOff;
+    }
     var res;
+    var ctl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+    _abortCtl = ctl;
+    var timedOut = false;
+    var timer = setTimeout(function () { timedOut = true; if (ctl) { try { ctl.abort(); } catch (e) {} } },
+                           CFG.AI_TIMEOUT_MS || 90000);
     try {
-      res = await fetch(CFG.PROXY_URL, { method: 'POST', headers: headers, body: JSON.stringify(body) });
-    } catch (e) { throw new Error('네트워크 오류: ' + (e && e.message)); }
+      res = await fetch(CFG.PROXY_URL, {
+        method: 'POST', headers: headers, body: JSON.stringify(body),
+        signal: ctl ? ctl.signal : undefined
+      });
+    } catch (e) {
+      if (e && e.name === 'AbortError') {
+        var eAb = new Error(timedOut
+          ? '시간이 너무 오래 걸려 멈췄어요. 전파가 약한 곳이면 잠시 뒤 다시 해주세요.'
+          : '취소했어요.');
+        eAb.code = timedOut ? 'TIMEOUT' : 'CANCELLED';
+        throw eAb;
+      }
+      throw new Error('네트워크 오류: ' + (e && e.message));
+    } finally {
+      clearTimeout(timer);
+      _abortCtl = null;
+    }
 
     var data = null;
     try { data = await res.json(); } catch (e) {}
@@ -298,6 +328,10 @@
       .map(function (b) { return b.text; }).join('\n');
   }
   AI.callClaude = callClaude;
+
+  /* 진행 중인 AI 호출을 끊는다 — 로딩 화면의 '취소' 가 부른다.
+     ⚠️ 차감은 성공한 뒤에만 하므로(ui_posts.js), 취소해도 횟수는 그대로다. */
+  AI.cancel = function () { if (_abortCtl) { try { _abortCtl.abort(); } catch (e) {} } };
 
   /* ═══ 장소 → 글 재료 ═══════════════════════════════════ */
   function placeMeta(place) {

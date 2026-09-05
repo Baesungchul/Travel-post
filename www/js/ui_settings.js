@@ -97,6 +97,18 @@
           ? '<div class="sp"><button class="btn sm ghost" id="cbPull">받기</button> ' +
             '<button class="btn sm primary" id="cbPush">올리기</button></div>'
           : '') + '</div>' +
+      /* ⭐ 2026-09-05: 자동 백업 스위치. 기본은 켬 — 안 눌러도 지켜지는 게 백업의 요점이다.
+         ⚠️ 데이터 요금이 걱정되면 여기서 끈다(와이파이인지 앱이 확실히 알 수 없다). */
+      (window.AutoBackup
+        ? '<label class="chk" style="margin-top:10px;"><input type="checkbox" id="abOn"' +
+            (AutoBackup.enabled() ? ' checked' : '') + '><span>자동 백업 (로그인 상태에서 하루 한 번)</span></label>' +
+          '<div class="mini" style="margin-top:4px;">' +
+            (Cloud.loggedIn && Cloud.loggedIn()
+              ? (function () { var s = AutoBackup.staleInfo();
+                  return s.never ? '아직 올린 적이 없어요.' : '마지막 백업 ' + s.days + '일 전.'; })()
+              : '로그인하면 켜집니다.') +
+            ' 사진을 인터넷으로 올리므로 데이터를 씁니다.</div>'
+        : '') +
       '<div class="mini" style="margin-top:8px;">사진은 기기에 남습니다. 백업은 <b>기기 밖</b>에 두세요.</div>';
 
     /* ⭐ 관리자 전용(사용자 요청 2026-09-02) — 관리자일 때만 만들고, GROUPS 에도
@@ -248,6 +260,14 @@
     });
     q('#acDel', function () { openDeleteAccount(); });
     q('#bkOpen', function () { Backup.openSheet(); });
+    (function () {
+      var ab = el.querySelector('#abOn');
+      if (ab) ab.onchange = function () {
+        AutoBackup.setEnabled(ab.checked);
+        showToast(ab.checked ? '자동 백업을 켰어요' : '자동 백업을 껐어요');
+        UI.renderSettings();
+      };
+    })();
     q('#cbPush', function () {
       /* ★ 2026-09-03 사용자 확정: 클라우드 백업은 구독 혜택으로 안 판다 — 로그인한
          사람이면 누구나 그대로 쓸 수 있게 잠금을 뺐다(subscription.js PAID_ONLY 참고). */

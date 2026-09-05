@@ -9,6 +9,7 @@
   'use strict';
   var UI = window.UI = window.UI || {};
   var _filter = '';   // profileId
+  var _q = '';        // 상호·지역·메모 검색어 (2026-09-05) — 목록·지도 보기에서만 쓴다
   /* 달력을 기본으로 둔다 — 여행은 날짜가 뼈대라 '언제 뭐 했더라'가 먼저 보이는 편이 낫다 */
   var _view = 'cal';  // 'cal' | 'list' | 'map' | 'trip'
 
@@ -29,8 +30,19 @@
       });
       var pfs = Profiles.list();
       var shown = _filter ? list.filter(function (p) { return p.profileId === _filter; }) : list;
+      /* ⭐ 2026-09-05: 카테고리 필터만 있어서, 한 달만 써도 상호 하나 찾기가 스크롤 노가다였다.
+         ⚠️ 달력·여행 보기는 목록이 아니라 날짜/묶음이 축이라 검색을 걸지 않는다(필터와 같은 이유). */
+      var qq = _q.trim().toLowerCase();
+      if (qq && _view !== 'cal' && _view !== 'trip') {
+        shown = shown.filter(function (p) {
+          return [p.name, p.area, p.address, p.memo].join(' ').toLowerCase().indexOf(qq) >= 0;
+        });
+      }
 
       var head =
+        /* ⭐ 2026-09-05: 저장공간이 얼마 안 남았거나 백업이 오래됐으면 여기서 먼저 알린다.
+           ☠️ 모른 채로 두면 현장에서 사진이 안 찍히거나, 기기 고장으로 통째로 날아간다. */
+        (window.AutoBackup ? AutoBackup.noticeHTML() : '') +
         '<div class="view-toggle">' +
           '<button type="button" class="tag' + (_view === 'cal' ? ' on' : '') + '" data-v="cal">📅 달력</button>' +
           '<button type="button" class="tag' + (_view === 'list' ? ' on' : '') + '" data-v="list">🗂 목록</button>' +
@@ -40,6 +52,9 @@
         /* ⚠️ 달력·여행 보기에서는 카테고리 필터가 아무 일도 하지 않는다 —
            동작하지 않는 버튼을 띄우면 사용자가 자기가 잘못 누른 줄 안다. 그럴 땐 감춘다. */
         ((_view === 'cal' || _view === 'trip') ? '' :
+          '<div class="srch"><input class="inp" id="rcQ" type="search" placeholder="상호·지역·메모 검색" value="' +
+            esc(_q) + '">' +
+          (qq ? '<div class="mini" style="margin-top:6px;">' + shown.length + '건 찾음</div>' : '') + '</div>' +
           '<div class="tagbar" style="margin-bottom:12px;">' +
           '<button type="button" class="tag' + (_filter ? '' : ' on') + '" data-pf="">전체<span class="n">' + list.length + '</span></button>' +
           pfs.map(function (pf) {
@@ -110,6 +125,12 @@
       el.querySelectorAll('[data-pf]').forEach(function (b) {
         b.onclick = function () { _filter = b.getAttribute('data-pf'); UI.renderRecords(); };
       });
+      (function () {
+        var q = el.querySelector('#rcQ');
+        if (!q) return;
+        q.oninput = function () { _q = q.value; UI.renderRecords(); };
+        if (_q) { try { q.focus(); q.setSelectionRange(q.value.length, q.value.length); } catch (e) {} }
+      })();
       el.querySelectorAll('[data-v]').forEach(function (b) {
         b.onclick = function () { _view = b.getAttribute('data-v'); UI.renderRecords(); };
       });

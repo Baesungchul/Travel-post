@@ -115,6 +115,9 @@
     AD_UNIT_REWARDED_POST:   'ca-app-pub-3940256099942544/5224354917',   // ⚠️ 구글 공식 테스트 리워드 광고 단위
     AD_UNIT_REWARDED_PCLINK: 'ca-app-pub-3940256099942544/5224354917',   // ⚠️ 위와 같은 테스트 단위 — 실제로는 따로 만들어도 됨
     AD_UNIT_BANNER:          'ca-app-pub-3940256099942544/9214589741',   // ⚠️ 구글 공식 테스트 배너 광고 단위
+    /* AI 글 생성 시간 제한(ms) — 넘으면 스스로 멈추고 '다시 해보세요' 를 띄운다 (2026-09-05) */
+    AI_TIMEOUT_MS: 90000,
+
     AD_TEST_MODE: true   // ⚠️ 실제 배포 전 반드시 false 로. true 인 동안은 tools/check.js 가 계속 경고한다
   };
 

@@ -96,8 +96,11 @@ const EXIFB64=makeExifJpegB64();
   await chk('앱 로드 (모듈 전부)', async()=>await page.evaluate(()=>
     [CFG&&'CFG',Profiles&&'Profiles',Store&&'Store',Photos&&'Photos',Exif&&'Exif',Cloud&&'Cloud',
      Subs&&'Subs',Backup&&'Backup',CloudBackup&&'CloudBackup',MapView&&'MapView',ClaudeAI&&'ClaudeAI',Share&&'Share'].length+'개 모듈'));
-  await chk('Firebase 미설정 안내', async()=>{const w=await page.evaluate(()=>Cloud.ready+'|'+Cloud.why);
-    must(w.startsWith('false'),'키가 없는데 ready=true'); return w.split('|')[1].slice(0,34)+'…';});
+  await chk('Firebase 상태 — 설정 여부와 안내가 맞는가', async()=>{
+    const r=await page.evaluate(()=>({set:CFG.hasFirebase(), ready:!!Cloud.ready, why:Cloud.why||''}));
+    must(r.ready===r.set, r.set?'키가 있는데 ready=false':'키가 없는데 ready=true');
+    if(!r.set) must(r.why.length>0,'왜 못 쓰는지 안 적힘');
+    return r.set?'설정됨 → 로그인 사용 가능':'미설정 → '+r.why.slice(0,30)+'…';});
   await chk('이용량 초기값', async()=>await page.evaluate(()=>Subs.label('post')));
 
   // 새 장소 + EXIF 사진 불러오기
@@ -150,27 +153,42 @@ const EXIFB64=makeExifJpegB64();
     must(/로그인/.test(r.msg),'안내에 로그인 유도 없음: '+r.msg);
     return r.msg.slice(0,40)+'…';
   });
-  await chk('프록시 없을 땐 게이트가 안 걸림 (비용이 안 나가므로)', async()=>{
+  /* ⚠️ 2026-09-05: 이 검사들은 config.js 가 **비어 있던 때**(2026-08-28)를 기준으로 쓰였다.
+     그 뒤 Firebase·프록시·카카오 키가 채워지면서 전제가 뒤집혔는데, 같은 시기에 첫 화면
+     로그인창이 생겨 검사가 여기까지 오지도 못해 아무도 몰랐다.
+     → 이제는 **설정 상태를 보고 기대를 나눈다.** 어느 쪽이든 규칙 자체는 그대로 검사한다. */
+  await chk('글 생성 게이트 — 프록시 유무에 맞게 동작', async()=>{
+    const hasProxy=await page.evaluate(()=>CFG.hasProxy());
     await page.click('#btnWrite'); await page.waitForTimeout(300);
-    await page.click('#wGen'); await page.waitForTimeout(400);
+    await page.click('#wGen'); await page.waitForTimeout(500);
     const tis=await page.locator('.sheet-ti').allInnerTexts();
-    must(!tis.some(t=>/🔒/.test(t)),'뼈대 초안인데 요금제가 뜸');
-    const txt=await page.inputValue('#wText');
-    must(txt.length>20,'초안이 안 들어옴');
+    if(!hasProxy){
+      must(!tis.some(t=>/🔒/.test(t)),'뼈대 초안인데 요금제가 뜸');
+      const txt=await page.inputValue('#wText');
+      must(txt.length>20,'초안이 안 들어옴');
+      await closeAll();
+      return '프록시 없음 → 뼈대 초안, 요금제 안 뜸';
+    }
+    /* 프록시가 있으면 비용이 나가므로 잠겨야 한다(로그인 안 된 상태) */
+    must(tis.some(t=>/🔒/.test(t)),'프록시가 있는데 게이트가 안 걸림: '+JSON.stringify(tis));
     await closeAll();
-    return '뼈대 초안 '+txt.split('\n').length+'줄, 요금제 안 뜸';
+    return '프록시 있음 → 요금제로 막음';
   });
-  await chk('게이트 UI — 잠기면 요금제가 뜬다', async()=>{
+  await chk('게이트 UI — 잠기면 요금제가 뜨고, 못 쓰는 버튼은 안 뜬다', async()=>{
     const shown=await page.evaluate(()=>{
       const r=Subs.gateFeature('post','AI 글 생성');
       const tis=[].slice.call(document.querySelectorAll('.sheet-ti')).map(e=>e.textContent);
-      return {allowed:r, tis:tis, hasLogin:!!document.getElementById('plLogin')};
+      return {allowed:r, tis:tis, hasLogin:!!document.getElementById('plLogin'), ready:!!Cloud.ready};
     });
     must(shown.allowed===false,'잠겨야 하는데 통과됨');
     must(shown.tis.some(t=>/🔒/.test(t)),'요금제 시트가 안 뜸: '+JSON.stringify(shown.tis));
-    must(shown.hasLogin===false,'Firebase 미설정인데 로그인 버튼이 떠 있음(막다른 길)');
+    /* ☠️ 규칙: 켤 수 없는 버튼은 띄우지 않는다.
+       Firebase 가 설정돼 있으면 로그인 버튼이 **있어야** 맞고(로그인하면 풀리니까),
+       설정이 안 돼 있으면 **없어야** 맞다(눌러도 아무 일도 못 하니까). */
+    must(shown.hasLogin===shown.ready,
+      shown.ready?'로그인하면 풀리는데 로그인 버튼이 없음':'Firebase 미설정인데 로그인 버튼이 떠 있음(막다른 길)');
     await closeAll();
-    return '잠김 + 요금제 표시 + 막다른 로그인 버튼 없음';
+    return '잠김 + 요금제 + 로그인 버튼 '+(shown.ready?'있음(정상)':'없음(정상)');
   });
 
   // 백업 → 삭제 → 복구 왕복
@@ -216,39 +234,124 @@ const EXIFB64=makeExifJpegB64();
   await closeAll();
   await page.click('.tab-item[data-tab="records"]'); await page.waitForTimeout(400);
   await page.click('[data-v="map"]'); await page.waitForTimeout(500);
-  await chk('지도 — 키 없을 때 지역 목록 폴백', async()=>{
+  await chk('지도 — 카카오 키 유무에 맞게', async()=>{
+    const hasMap=await page.evaluate(()=>CFG.hasKakaoMap());
     const t=await page.locator('#pnRecords').innerText();
-    must(/KAKAO_JS_KEY/.test(t),'왜 안 되는지 안 적힘');
-    must((await page.locator('.mapRow').count())>0,'폴백 목록이 비어 있음');
-    return (await page.locator('.mapRow').count())+'행';
+    if(!hasMap){
+      must(/KAKAO_JS_KEY/.test(t),'왜 안 되는지 안 적힘');
+      must((await page.locator('.mapRow').count())>0,'폴백 목록이 비어 있음');
+      return '키 없음 → 이유 표시 + 폴백 '+(await page.locator('.mapRow').count())+'행';
+    }
+    must(!/KAKAO_JS_KEY/.test(t),'키가 있는데 미설정 안내가 뜸');
+    return '키 있음 → 지도 화면';
   });
   await page.screenshot({path:path.join(__dirname,'shot_map.png')});
 
   // 설정 — 계정/백업/구독 카드
   await page.click('.tab-item[data-tab="settings"]'); await page.waitForTimeout(600);
-  await chk('설정 — 계정·백업·이용량 카드', async()=>{
+  await chk('설정 — 항목 구성 (2026-09-05 재구성: 계정이 맨 위 단독)', async()=>{
     const t=await page.locator('#pnSettings').innerText();
-    ['👤 계정','💾 백업','🎫 이용량','KAKAO_JS_KEY'].forEach(k=>must(t.includes(k),k+' 없음'));
-    return (await page.locator('#pnSettings .todo').count())+'건 미설정 표시';
+    ['계정','카테고리 · 글쓰기','백업 · 이용량','화면 · 정보']
+      .forEach(k=>must(t.includes(k),k+' 없음'));
+    /* 계정이 첫 항목이어야 한다 — 순서가 요구사항이다 */
+    const first=await page.locator('#pnSettings .set-group-head').first().innerText();
+    must(/계정/.test(first),'계정이 맨 위가 아님: '+first.replace(/\n/g,' '));
+    /* 아직 안 채운 값은 이름 그대로 화면에 뜬다 */
+    const miss=await page.evaluate(()=>CFG.missing().map(m=>m.k));
+    miss.forEach(k=>must(t.includes(k),'미설정 값 '+k+' 이 화면에 안 뜸'));
+    /* 맨 아래 줄: 로그인/로그아웃 + 앱명·버전 */
+    const foot=await page.locator('.set-foot').innerText();
+    must(/찍고쓰다 v/.test(foot),'맨 아래에 앱명·버전이 없음: '+foot);
+    return '항목 4종 · 미설정 '+miss.length+'건 · 아래줄 "'+foot.replace(/\n/g,' ')+'"';
   });
   await page.screenshot({path:path.join(__dirname,'shot_settings.png')});
-  await chk('로그인 — 키 없을 땐 버튼 대신 이유', async()=>{
-    const t=await page.locator('#pnSettings').innerText();
-    must(/아직 로그인을 켤 수 없습니다/.test(t),'이유가 안 적힘');
-    must((await page.locator('#acIn').count())===0,'못 쓰는 로그인 버튼이 떠 있음');
-    const t2=await page.evaluate(()=>{UI.openLogin();
-      const s=document.querySelector('.sheet-ov .sheet').innerText;
-      document.querySelectorAll('.sheet-ov').forEach(e=>e.remove());return s;});
-    must(/아직 로그인을 켤 수 없어요/.test(t2),'openLogin 안내가 다름');
-    return '버튼 없음 + 이유 표시';
+  await chk('로그인 — 설정 상태에 맞게 (막다른 길 금지)', async()=>{
+    const ready=await page.evaluate(()=>!!Cloud.ready);
+    if(ready){
+      must((await page.locator('#acAuth').count())===1,'맨 아래 로그인 글자가 없음');
+      const t2=await page.evaluate(()=>{UI.openLogin();
+        const s=document.querySelector('.sheet-ov .sheet').innerText;
+        document.querySelectorAll('.sheet-ov').forEach(e=>e.remove());return s;});
+      must(!/아직 로그인을 켤 수 없어요/.test(t2),'설정돼 있는데 못 쓴다고 함');
+    }
+    /* ☠️ Firebase 가 없을 때의 규칙도 그 자리에서 확인한다 — 실제로 꺼 보고 되돌린다.
+       (설정값이 채워진 뒤로는 이 경로를 아무도 안 밟아 보게 되므로) */
+    const off=await page.evaluate(()=>{
+      const keep=Cloud.ready; Cloud.ready=false; UI.renderSettings();
+      const head=document.querySelector('.set-group-head[data-g="acct"]');
+      if(head) head.click();
+      const t=document.getElementById('pnSettings').innerText;
+      const btn=document.querySelectorAll('#acAuth,#acIn').length;
+      const s=(UI.openLogin(),document.querySelector('.sheet-ov .sheet').innerText);
+      document.querySelectorAll('.sheet-ov').forEach(e=>e.remove());
+      Cloud.ready=keep; UI.renderSettings();
+      return {t:t, btn:btn, s:s};
+    });
+    must(/아직 로그인을 켤 수 없습니다/.test(off.t),'미설정일 때 이유가 안 적힘');
+    must(off.btn===0,'미설정인데 로그인 버튼이 떠 있음(막다른 길)');
+    must(/아직 로그인을 켤 수 없어요/.test(off.s),'openLogin 안내가 다름');
+    return (ready?'설정됨 → 로그인 글자 있음':'미설정')+' · 미설정 경로도 규칙대로';
   });
   await chk('백업 시트 열림', async()=>{
     await page.waitForTimeout(200);
+    /* 2026-09-05 재구성: 백업은 '백업 · 이용량' 묶음 안의 소타이틀 '백업' 에 있다.
+       ⚠️ 아코디언은 한 번에 하나만 열리므로 큰 타이틀 → 소타이틀 순서로 눌러야 한다. */
+    await page.click('.set-group-head[data-g="data"]'); await page.waitForTimeout(300);
+    await page.click('.set-sub-head[data-s="백업"]'); await page.waitForTimeout(300);
     await page.click('#bkOpen'); await page.waitForTimeout(400);
     const t=await page.locator('.sheet').last().innerText();
     must(/백업 만들기/.test(t),'백업 시트 아님');
     await closeAll();
     return 'OK';
+  });
+
+  /* ═══ 2026-09-05 추가분 — 여기서 실제로 사고가 났던 것들 ═══ */
+  await chk('글 유실 방지 — 바깥을 눌러 닫아도 임시 보관', async()=>{
+    await page.click('.tab-item[data-tab="records"]'); await page.waitForTimeout(300);
+    /* 앞 단계에서 현재 장소가 비어 있을 수 있다 — photos.js 와 같은 방식으로 하나 확보한다 */
+    await page.evaluate(()=>UI.openWriter(Place.current()||Place.create())); await page.waitForTimeout(500);
+    const TXT='임시보관 검사용 글. (사진: 외관) 국물이 좋았다.';
+    await page.fill('#wText',TXT); await page.waitForTimeout(200);
+    /* ☠️ 예전에는 여기서 글이 그대로 사라졌다 — 차감은 이미 끝난 뒤인데도. */
+    await page.mouse.click(206,60); await page.waitForTimeout(400);
+    must((await page.locator('#wText').count())===0,'바깥을 눌러도 안 닫힘');
+    const kept=await page.evaluate(()=>{
+      const k=Object.keys(localStorage).filter(x=>x.indexOf('draft_')>=0);
+      return k.length?localStorage.getItem(k[0]):'';});
+    must(kept.indexOf('국물이 좋았다')>=0,'닫으니 글이 사라짐(임시 보관 안 됨)');
+    await page.evaluate(()=>UI.openWriter(Place.current())); await page.waitForTimeout(600);
+    must((await page.inputValue('#wText'))===TXT,'다시 열었는데 안 살아남');
+    await page.click('#wSave'); await page.waitForTimeout(600);
+    const left=await page.evaluate(()=>Object.keys(localStorage).filter(x=>x.indexOf('draft_')>=0).length);
+    must(left===0,'저장했는데 임시본이 안 지워짐');
+    await closeAll();
+    return '닫아도 보관 → 다시 열면 복원 → 저장하면 정리';
+  });
+  await chk('검색 — 완성글·기록', async()=>{
+    await page.click('.tab-item[data-tab="posts"]'); await page.waitForTimeout(500);
+    must((await page.locator('#poQ').count())===1,'완성글에 검색칸 없음');
+    await page.fill('#poQ','국물'); await page.waitForTimeout(300);
+    const hit=await page.locator('.postRow').count();
+    must(hit>=1,'검색어에 걸려야 할 글이 안 나옴');
+    await page.fill('#poQ','없는낱말zzz'); await page.waitForTimeout(300);
+    must((await page.locator('.postRow').count())===0,'없는 낱말인데 결과가 나옴');
+    await page.fill('#poQ',''); await page.waitForTimeout(200);
+    await page.click('.tab-item[data-tab="records"]'); await page.waitForTimeout(400);
+    /* 달력·여행 보기에는 일부러 안 넣는다 — 카테고리 필터를 감추는 것과 같은 이유.
+       ⚠️ 앞 단계에서 보기가 바뀌어 있을 수 있으므로 직접 눌러서 맞춘다. */
+    await page.click('[data-v="cal"]'); await page.waitForTimeout(400);
+    must((await page.locator('#rcQ').count())===0,'달력 보기에 검색칸이 뜸');
+    await page.click('[data-v="list"]'); await page.waitForTimeout(400);
+    must((await page.locator('#rcQ').count())===1,'목록 보기에 검색칸이 없음');
+    return '완성글 '+hit+'건 걸림 · 기록은 목록 보기에서만';
+  });
+  await chk('자동 백업 — 로그인 전에는 돌지 않는다', async()=>{
+    const r=await page.evaluate(()=>({on:AutoBackup.enabled(), stale:AutoBackup.staleInfo().never,
+      notice:AutoBackup.noticeHTML()}));
+    must(r.on===true,'기본값이 꺼짐');
+    /* 로그인 전에는 클라우드 백업 안내를 띄우지 않는다 — 할 수 없는 일을 재촉하지 않는다 */
+    must(r.notice.indexOf('백업한 지')<0,'로그인 전인데 백업 재촉이 뜸');
+    return '기본 켬 · 로그인 전 재촉 없음';
   });
 
   console.log('\n=== 2·3단계 스모크 ===');

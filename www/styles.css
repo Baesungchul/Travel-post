@@ -257,6 +257,15 @@ textarea.inp{ resize:vertical; min-height:78px; line-height:1.6; }
 
 /* ── 설정 2단 아코디언 (2026-09-02, 현장매니저 참고 — 카드 8개가 한꺼번에 펼쳐져 복잡하다는
    사용자 지적으로 큰 타이틀→소타이틀→내용 순으로 접었다. 한 번에 하나만 열린다) ── */
+/* ── 검색칸 (기록·완성글) 2026-09-05 ── */
+.srch{ margin-bottom:10px; }
+.srch .inp{ width:100%; }
+
+/* ── 로딩 화면의 '취소' — 전파가 약할 때 빠져나오는 유일한 길 ── */
+.busy-cancel{ margin-top:12px; border:0; background:none; color:var(--mu); font:inherit;
+              font-size:12.5px; text-decoration:underline; text-underline-offset:2px; cursor:pointer; }
+.busy-cancel:active{ opacity:.6; }
+
 /* ── 설정 탭: 위쪽 앱 이름 줄을 숨기고 브랜드를 설정 안으로 (2026-09-05) ──
    ☠️ .hdr 이 상태바 여백(--sa-top)을 받고 있었다. 그냥 숨기면 내용이 상태바 밑으로 들어간다.
       숨기는 대신 그 여백을 설정 패널이 대신 받는다. */
