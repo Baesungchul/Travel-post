@@ -328,9 +328,15 @@
       b.onclick = function (e) {
         e.stopPropagation();
         if (!confirm('이 사진을 지울까요?')) return;
-        Photos.remove(b.getAttribute('data-del')).then(UI.renderNow);
+        Undo.deletePhoto(b.getAttribute('data-del')).then(UI.renderNow);
       };
     });
+    /* ⭐ 2026-09-05 사용자 요청: 사진을 누르면 크게 보이고 좌우로 밀어 다음 사진으로 간다.
+       태그·메모 고치기는 뷰어 안의 '✏️ 태그 · 메모' 로 들어간다 — 그래야 "사진을 눌렀다"의
+       첫 결과가 늘 '사진이 크게 보이는 것'이 된다(예전엔 곧장 편집 시트가 떴다).
+       ⚠️ 뷰어가 사진의 click 을 stopPropagation 으로 잡으므로, 아래 .ph 핸들러는
+          사진이 아닌 자리(태그 딱지 등)를 눌렀을 때만 걸린다. */
+    Viewer.bind(el.querySelector('.grid'), { onEdit: openPhotoSheet });
     el.querySelectorAll('.ph').forEach(function (d) {
       d.onclick = function () { openPhotoSheet(d.getAttribute('data-id')); };
     });
@@ -339,12 +345,12 @@
        기존엔 「기록」 탭 상세 시트에만 삭제가 있었다. 동작은 그쪽과 동일
        (Store.placeDelete 가 사진·글까지 함께 지운다). */
     el.querySelector('#btnDelPlace').onclick = function () {
-      if (!confirm('이 기록과 사진·글을 모두 지울까요?\n되돌릴 수 없습니다.')) return;
+      if (!confirm('이 기록과 사진·글을 모두 지울까요?')) return;
       var pid = p.id;
-      Store.placeDelete(pid).then(function () {
+      /* 지운 직후 잠시 되돌릴 수 있다 (undo.js) — 사진 Blob 과 글까지 통째로 되살린다 */
+      Undo.deletePlace(pid).then(function () {
         if (Place.current() && Place.current().id === pid) Place.clear();
         Store.setPut('lastPlaceId', null);
-        showToast('지웠어요');
         UI.renderNow();
       });
     };
@@ -456,6 +462,13 @@
             '<button class="btn primary" id="phSave">저장</button>'
     });
     Photos.url(id).then(function (u) { if (u) ov.querySelector('#phBig').src = u; });
+    /* 편집 시트 안의 큰 사진을 눌러도 뷰어로 — 여기서도 좌우로 넘겨볼 수 있다.
+       ⚠️ 목록은 글·공유와 같은 순서(Photos.ordered)로 준다. 뷰어의 순서가 글의 순서와 달라지면
+          "3번째 사진" 이 서로 다른 것을 가리키게 된다. */
+    ov.querySelector('#phBig').style.cursor = 'zoom-in';
+    ov.querySelector('#phBig').onclick = function () {
+      Viewer.open(Photos.ordered(p).map(function (x) { return x.id; }), id);
+    };
     ov.querySelectorAll('#phTags .tag').forEach(function (b) {
       b.onclick = function () {
         ov.querySelectorAll('#phTags .tag').forEach(function (o) { o.classList.remove('on'); });

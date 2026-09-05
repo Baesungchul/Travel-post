@@ -74,9 +74,8 @@
       } else if (!shown.length) {
         el.innerHTML = head + '<div class="empty"><div style="font-size:38px;margin-bottom:10px;">🗂</div>' +
           '아직 기록이 없어요.<br><span class="mini">＋ 를 눌러 첫 장소를 시작해 보세요.</span></div>';
-      } else if (_view === 'trip2') {
-        el.innerHTML = head + '<div id="tripView"><div class="mini">불러오는 중…</div></div>';
-        renderTrips(el.querySelector('#tripView'));
+      /* (2026-09-05 정리) 여기 있던 _view === 'trip2' 가지는 그 값을 넣는 곳이 어디에도 없어
+         절대 안 걸리는 죽은 코드였다. 내용도 바로 위 'trip' 가지와 같았다 — 지웠다. */
       } else if (_view === 'map') {
         el.innerHTML = head + '<div id="recMap"></div>';
         MapView.render(el.querySelector('#recMap'), shown, openPlaceSheet);
@@ -249,7 +248,7 @@
       };
       ov.querySelector('#trDel').onclick = function () {
         if (!confirm('이 여행을 지울까요?\n장소와 사진은 그대로 남습니다.')) return;
-        Trips.remove(id).then(function () { ov.close(); UI.renderRecords(); showToast('묶음을 풀었어요'); });
+        Undo.deleteTrip(id).then(function () { ov.close(); UI.renderRecords(); });
       };
       ov.querySelector('#trWrite').onclick = function () {
         if (!places.length) { showToast('먼저 장소를 담아주세요', 'err'); return; }
@@ -351,6 +350,16 @@
       ov.querySelectorAll('img[data-ph]').forEach(function (im) {
         Photos.url(im.getAttribute('data-ph')).then(function (u) { if (u) im.src = u; });
       });
+      /* 사진을 누르면 크게 보고 좌우로 넘긴다 (사용자 요청 2026-09-05).
+         ⚠️ 시트에는 앞 12장만 그리지만, 넘겨보기는 이 장소의 **모든** 사진을 대상으로 한다 —
+            "12장까지만 넘어간다"는 건 사용자 입장에서 설명할 수 없는 동작이다. */
+      ov.querySelectorAll('.grid img[data-ph]').forEach(function (im) {
+        im.style.cursor = 'zoom-in';
+        im.onclick = function (e) {
+          e.preventDefault(); e.stopPropagation();
+          Viewer.open((p.photos || []).map(function (x) { return x.id; }), im.getAttribute('data-ph'));
+        };
+      });
       ov.querySelectorAll('.postRow').forEach(function (row) {
         row.onclick = function () {
           var o = posts.filter(function (x) { return x.id === row.getAttribute('data-id'); })[0];
@@ -362,10 +371,11 @@
         Place.open(id).then(function () { ov.close(); UI.switchTab('now'); });
       };
       ov.querySelector('#plDel').onclick = function () {
-        if (!confirm('이 장소와 사진·글을 모두 지울까요?\n되돌릴 수 없습니다.')) return;
-        Store.placeDelete(id).then(function () {
+        if (!confirm('이 장소와 사진·글을 모두 지울까요?')) return;
+        /* 지운 직후 잠시 되돌릴 수 있다 (undo.js) */
+        Undo.deletePlace(id).then(function () {
           if (Place.current() && Place.current().id === id) Place.clear();
-          ov.close(); UI.refresh(); showToast('지웠어요');
+          ov.close(); UI.refresh();
         });
       };
     });

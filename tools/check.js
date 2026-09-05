@@ -108,7 +108,14 @@ const gates = [
   ['share.js',    "padStart(2, '0')", '공유 파일명 순번'],
   ['state.js',    "'ov-lock'", '오버레이 스크롤 잠금'],
   ['plans.js',    'pl.placeId', '계획 → 기록 연결'],
-  ['trips.js',    "' - '", "여행 사진 태그가 '상호 - 태그' 합성"]
+  ['trips.js',    "' - '", "여행 사진 태그가 '상호 - 태그' 합성"],
+  /* ★ 2026-09-05 추가 — 전부 '사라져도 오류가 안 나고 조용히 나빠지는' 종류다 */
+  ['photos.js',   'URL_CACHE_MAX', '사진 URL 캐시 상한 (없으면 사진 Blob 이 메모리에 계속 쌓인다)'],
+  ['photos.js',   'inUse(u)', '화면에 걸린 URL 은 해제하지 않음 (깨진 사진 방지)'],
+  ['ai.js',       'stop_reason', '글이 잘렸는지 확인 (안 보면 끊긴 글을 그대로 내보낸다)'],
+  ['ai.js',       'RETRY_MAX', '일시적 실패 재시도'],
+  ['undo.js',     'Store.photoGet', '되돌리기가 지우기 **전에** 사진 Blob 을 떠 둠'],
+  ['viewer.js',   'Photos.url', '뷰어가 URL 캐시를 거침 (직접 createObjectURL 하면 샌다)']
 ];
 gates.forEach(([f, needle, label]) => {
   const src = read(path.join(JS, f));

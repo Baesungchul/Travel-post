@@ -95,7 +95,8 @@ const EXIFB64=makeExifJpegB64();
 
   await chk('앱 로드 (모듈 전부)', async()=>await page.evaluate(()=>
     [CFG&&'CFG',Profiles&&'Profiles',Store&&'Store',Photos&&'Photos',Exif&&'Exif',Cloud&&'Cloud',
-     Subs&&'Subs',Backup&&'Backup',AutoBackup&&'AutoBackup',MapView&&'MapView',ClaudeAI&&'ClaudeAI',Share&&'Share'].length+'개 모듈'));
+     Subs&&'Subs',Backup&&'Backup',AutoBackup&&'AutoBackup',MapView&&'MapView',ClaudeAI&&'ClaudeAI',Share&&'Share',
+     Viewer&&'Viewer',Undo&&'Undo'].length+'개 모듈'));
   await chk('Firebase 상태 — 설정 여부와 안내가 맞는가', async()=>{
     const r=await page.evaluate(()=>({set:CFG.hasFirebase(), ready:!!Cloud.ready, why:Cloud.why||''}));
     must(r.ready===r.set, r.set?'키가 있는데 ready=false':'키가 없는데 ready=true');
@@ -397,6 +398,137 @@ const EXIFB64=makeExifJpegB64();
     const r=await page.evaluate(()=>({cb:typeof window.CloudBackup, txt:document.body.innerText}));
     must(r.cb==='undefined','CloudBackup 이 아직 로드됨');
     return '클라우드 백업 코드 없음';
+  });
+
+  /* ═══ 2026-09-05 (2차) — 사진 뷰어 · 되돌리기 · 잘림 · 재시도 · 캐시 상한 ═══ */
+  /* 앞 단계에서 장소를 지웠다 복구했으므로 '지금 열린 장소'가 비어 있다 —
+     사진이 여러 장 있는 장소를 다시 열어 놓고 시작한다. */
+  await page.evaluate(async()=>{
+    const all=await Store.placeAll();
+    const p=all.filter(x=>(x.photos||[]).length>=2)[0];
+    if(p) await Place.open(p.id);
+  });
+  await page.waitForTimeout(300);
+
+  await chk('사진 뷰어 — 눌러서 크게, 좌우로 넘기기', async()=>{
+    await closeAll();
+    await page.click('.tab-item[data-tab="now"]'); await page.waitForTimeout(600);
+    const n=await page.locator('.grid img[data-ph]').count();
+    must(n>=2,'검사할 사진이 2장 미만: '+n);
+    await page.click('.grid img[data-ph]'); await page.waitForTimeout(400);
+    must((await page.locator('.pv-full').count())===1,'뷰어가 안 열림');
+    const first=await page.evaluate(()=>({
+      open:getComputedStyle(document.querySelector('.pv-full')).display,
+      cnt:document.querySelector('.pvf-cnt').textContent,
+      next:getComputedStyle(document.querySelector('.pvf-nav.next')).display
+    }));
+    must(first.open==='flex','뷰어가 화면에 안 보임');
+    must(/^1 \/ /.test(first.cnt),'장수 표시가 이상함: '+first.cnt);
+    must(first.next!=='none','다음 사진 화살표가 없음(사진이 여러 장인데)');
+    /* 넘기기 — 애니메이션(160+210ms)이 끝날 때까지 기다린다 */
+    await page.click('.pvf-nav.next'); await page.waitForTimeout(700);
+    const second=await page.evaluate(()=>document.querySelector('.pvf-cnt').textContent);
+    must(/^2 \/ /.test(second),'다음 사진으로 안 넘어감: '+second);
+    /* 안드로이드 뒤로가기와 같은 경로로 닫히나 — 뷰어가 팝업 스택에 올라와 있어야 한다 */
+    const closed=await page.evaluate(()=>{
+      const ok=window.closeTopOverlay();
+      return {ok:ok, disp:getComputedStyle(document.querySelector('.pv-full')).display};
+    });
+    must(closed.ok===true,'뒤로가기가 뷰어를 못 찾음(팝업 스택에 안 올라감)');
+    must(closed.disp==='none','뒤로가기를 눌러도 뷰어가 안 닫힘');
+    return '사진 '+n+'장 · 넘기기 · 뒤로가기로 닫힘';
+  });
+  await chk('삭제 되돌리기 — 사진을 지워도 되살릴 수 있다', async()=>{
+    const r=await page.evaluate(async()=>{
+      const wait=ms=>new Promise(r=>setTimeout(r,ms));
+      const p=Place.current();
+      const before=p.photos.length;
+      const id=p.photos[0].id;
+      const tag=p.photos[0].tag;
+      await Undo.deletePhoto(id);
+      await wait(200);
+      const gone=Place.current().photos.length;
+      const blobGone=!(await Store.photoGet(id));
+      /* 되돌리기 막대가 실제로 떠 있어야 사용자가 누를 수 있다 */
+      const bar=document.querySelector('.undo-bar');
+      const shown=!!(bar&&bar.classList.contains('show'));
+      if(bar) bar.querySelector('.undo-btn').click();
+      await wait(400);
+      const back=Place.current().photos;
+      return {before, gone, blobGone, shown,
+              after:back.length, sameTag:(back[0]||{}).tag===tag,
+              blobBack:!!(await Store.photoGet(id))};
+    });
+    must(r.gone===r.before-1,'지웠는데 목록에서 안 빠짐');
+    must(r.blobGone===true,'지웠는데 사진 자체가 남음');
+    must(r.shown===true,'되돌리기 막대가 안 뜸(누를 방법이 없음)');
+    must(r.after===r.before,'되돌렸는데 장수가 안 맞음: '+r.after+'/'+r.before);
+    must(r.blobBack===true,'되돌렸는데 사진 Blob 이 안 살아남');
+    must(r.sameTag===true,'되돌렸는데 원래 자리·태그가 아님');
+    return r.before+'장 → 지움 → 되돌림 → '+r.after+'장 (Blob·자리·태그 그대로)';
+  });
+  await chk('글 길이 표시 — 채널 권장 길이를 알려준다', async()=>{
+    await closeAll();
+    await page.evaluate(()=>UI.openWriter(Place.current()||Place.create())); await page.waitForTimeout(500);
+    await page.fill('#wText','짧은 글'); await page.waitForTimeout(250);
+    /* X 는 280자가 넘으면 아예 안 올라간다 — '조금 길다'가 아니라 경고여야 한다 */
+    const r=await page.evaluate(async()=>{
+      const wait=ms=>new Promise(r=>setTimeout(r,ms));
+      const e=document.querySelector('#wLen');
+      const short={tx:e.textContent, cls:e.className};
+      document.querySelector('.ch[data-ch="x"]').click(); await wait(150);
+      const ta=document.querySelector('#wText');
+      ta.value='가'.repeat(400);
+      ta.dispatchEvent(new Event('input'));
+      await wait(200);
+      return {short:short, over:{tx:e.textContent, cls:e.className}};
+    });
+    must(/자/.test(r.short.tx),'글자 수가 안 나옴: '+r.short.tx);
+    must(/권장/.test(r.short.tx),'권장 길이가 안 나옴: '+r.short.tx);
+    must(r.over.cls==='over-hard','X 에서 280자를 넘겼는데 경고가 아님: '+r.over.cls);
+    must(/올라가지|올라갑니다/.test(r.over.tx),'못 올린다는 말이 없음: '+r.over.tx);
+    await closeAll();
+    return '짧을 때 "'+r.short.tx.slice(0,24)+'…" · X 초과는 경고';
+  });
+  await chk('AI — 잘린 글 감지 / 일시적 실패는 다시 시도', async()=>{
+    const r=await page.evaluate(async()=>{
+      const realFetch=window.fetch;
+      const realAuth=CFG.PROXY_AUTH;
+      CFG.PROXY_AUTH=false;   /* 이 검사는 재시도·잘림만 본다 — 로그인 게이트는 위에서 따로 본다 */
+      const out={tries:0, truncated:null, retried:0, text:''};
+      /* (1) 처음 두 번은 502, 세 번째에 성공 → 사용자가 다시 누르지 않아도 붙어야 한다.
+             ☠️ 예전엔 502 하나에 그대로 실패로 끝났다(이 앱에서 가장 흔한 실패였다). */
+      window.fetch=async()=>{
+        out.tries++;
+        if(out.tries<3) return new Response('{"error":{"message":"bad gateway"}}',{status:502});
+        return new Response(JSON.stringify({content:[{type:'text',text:'이어지다 만 문장'}],
+                                            stop_reason:'max_tokens'}),{status:200});
+      };
+      try{
+        out.text=await ClaudeAI.callClaude({messages:[{role:'user',content:'x'}]});
+        out.truncated=ClaudeAI.wasTruncated();
+      }catch(e){ out.text='ERR:'+e.message; }
+      out.retried=out.tries;
+      /* (2) 4xx 는 다시 해도 같은 답이다 — 재시도하면 안 된다 */
+      let n4=0;
+      window.fetch=async()=>{ n4++; return new Response('{"error":{"message":"nope"}}',{status:400}); };
+      try{ await ClaudeAI.callClaude({messages:[{role:'user',content:'x'}]}); }catch(e){}
+      window.fetch=realFetch;
+      CFG.PROXY_AUTH=realAuth;
+      out.tries4xx=n4;
+      return out;
+    });
+    must(r.retried===3,'502 를 만나고도 다시 시도하지 않음(시도 '+r.retried+'회)');
+    must(r.text==='이어지다 만 문장','재시도 뒤 결과를 못 받음: '+r.text);
+    must(r.truncated===true,'stop_reason=max_tokens 인데 잘린 걸 모름');
+    must(r.tries4xx===1,'4xx 인데 쓸데없이 다시 시도함('+r.tries4xx+'회)');
+    return '502 두 번 → 세 번째 성공 · 잘림 감지 · 4xx 는 재시도 안 함';
+  });
+  await chk('사진 URL 캐시에 상한이 있다', async()=>{
+    const r=await page.evaluate(()=>({max:Photos.CACHE_MAX, now:Photos.cacheSize()}));
+    must(typeof r.max==='number'&&r.max>0,'상한이 없음 — 사진 Blob 이 계속 쌓인다');
+    must(r.now<=r.max,'이미 상한을 넘음: '+r.now+'/'+r.max);
+    return '상한 '+r.max+'장 · 지금 '+r.now+'장';
   });
 
   console.log('\n=== 2·3단계 스모크 ===');

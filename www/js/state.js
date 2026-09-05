@@ -106,6 +106,16 @@
      overlay() 로 여는 모든 팝업이 여기 쌓인다 — 앱 전체 팝업이 이 함수 하나로 통일돼 있어서
      (설계안 5장 규칙), 뒤로가기는 이 스택만 보면 '가장 나중에 연 것부터' 닫을 수 있다. */
   var _ovStack = [];
+  /* ⭐ 2026-09-05: overlay() 로 만들지 않은 전체화면 팝업(사진 뷰어)도 뒤로가기에 걸리게 —
+     { close: fn } 만 주면 스택에 올려 준다. 반환값을 부르면 스택에서 빠진다.
+     ☠️ 뷰어를 스택에 안 올리면 뒤로가기가 뷰어를 건너뛰고 탭을 바꿔 버린다. */
+  window.registerSheet = function (obj) {
+    _ovStack.push(obj);
+    return function () {
+      var i = _ovStack.indexOf(obj);
+      if (i !== -1) _ovStack.splice(i, 1);
+    };
+  };
   window.closeTopOverlay = function () {
     if (!_ovStack.length) return false;
     var top = _ovStack[_ovStack.length - 1];

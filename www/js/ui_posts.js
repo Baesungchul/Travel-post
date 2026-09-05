@@ -49,8 +49,12 @@
     function paint() {
       if (!on) return;
       pv.innerHTML = '<div class="pv-empty">사진 불러오는 중…</div>';
-      Preview.render(ta.value, getPlace()).then(function (html) { pv.innerHTML = html; })
-        .catch(function () { pv.innerHTML = '<div class="pv-empty">미리보기를 만들지 못했어요.</div>'; });
+      Preview.render(ta.value, getPlace()).then(function (html) {
+        pv.innerHTML = html;
+        /* 미리보기의 사진도 눌러서 크게 보고 좌우로 넘긴다 (사용자 요청 2026-09-05).
+           ⚠️ 넘겨보기 순서는 글에 박힌 순서 그대로다 — 화면에 보이는 차례와 같아야 헷갈리지 않는다. */
+        try { Viewer.bind(pv); } catch (e) {}
+      }).catch(function () { pv.innerHTML = '<div class="pv-empty">미리보기를 만들지 못했어요.</div>'; });
     }
     function show(v) {
       on = !!v;
@@ -104,6 +108,9 @@
         '<textarea class="post-ta" id="wText" placeholder="여기에 글이 만들어집니다. 그대로 고쳐도 됩니다.">' +
           esc((existingPost && existingPost.text) || '') + '</textarea>' +
         '<div class="post-pv" id="wPv" style="display:none;"></div>' +
+        /* 글 길이 — 채널마다 맞는 길이가 다르다(X 는 280자를 넘으면 아예 안 올라간다) */
+        '<div class="len-row"><span id="wLen"></span></div>' +
+        '<div class="notice" id="wCut" style="display:none;"></div>' +
         '<div class="mini" id="wHintCopy" style="margin-top:6px;"></div>',
       foot: '<button class="btn ghost" id="wSave">저장</button>' +
             '<button class="btn ghost" id="wCopy">📋 복사</button>' +
@@ -132,8 +139,32 @@
           showToast('임시 보관해 둔 글을 불러왔어요');
         }
       }
-      ta.addEventListener('input', function () { draftSave(p.id, chId, ta.value); });
+      ta.addEventListener('input', function () { draftSave(p.id, chId, ta.value); paintLen(); });
     })();
+
+    /* ── 글자 수 (분석 2026-09-05) ────────────────────────────
+       왜: 채널마다 맞는 길이가 다른데 화면에는 아무 표시가 없었다. 인스타에 2,000자를
+           붙여넣고 잘리거나, X 에 280자를 넘겨 아예 안 올라가는 일이 사용자 쪽에서 생긴다.
+       ⚠️ 길이는 **복사되는 글 기준**이다 — 사진 마커((사진: 외관))도 붙여넣으면 글자로 들어가니
+          빼고 세면 안 된다. 화면 미리보기에서 사진으로 보이는 것과는 다른 이야기다. */
+    function paintLen() {
+      var e = ov.querySelector('#wLen');
+      if (!e) return;
+      var ta2 = ov.querySelector('#wText');
+      var n = (ta2 ? ta2.value : '').length;
+      var L = ClaudeAI.channel(chId).len;
+      if (!n) { e.textContent = ''; e.className = ''; return; }
+      var txt = n.toLocaleString('ko-KR') + '자';
+      var cls = '';
+      if (L) {
+        txt += ' · 권장 ' + (L.min ? L.min.toLocaleString('ko-KR') + '~' : '') + L.max.toLocaleString('ko-KR') + '자';
+        if (n > L.max) { cls = L.hard ? 'over-hard' : 'over'; txt += L.hard ? ' — 넘으면 안 올라갑니다' : ' — 조금 깁니다'; }
+        else if (L.min && n < L.min) { cls = 'under'; txt += ' — 조금 짧습니다'; }
+        else { cls = 'good'; txt += ' ✓'; }
+      }
+      e.textContent = txt;
+      e.className = cls;
+    }
 
     var wPv = bindPreview(ov, '#wText', '#wPv', '#wPvBtn', function () { return p; });
     /* 이미 글이 있는 채로 열렸으면(저장된 글 다시 열기) 곧바로 사진으로 보여준다 */
@@ -143,6 +174,7 @@
       chId = k;
       ov.querySelectorAll('#wCh .ch').forEach(function (b) { b.classList.toggle('on', b.dataset.ch === k); });
       ov.querySelector('#wHintCopy').textContent = ClaudeAI.channel(k).copyHint || '';
+      paintLen();     /* 채널이 바뀌면 권장 길이도 바뀐다 */
       try { localStorage.setItem(CFG.k('last_ch'), k); } catch (e) {}
     }
     ov.querySelectorAll('#wCh .ch').forEach(function (b) {
@@ -155,7 +187,46 @@
         ? ClaudeAI.localTripDraft(trip, tripPlaces)
         : ClaudeAI.localDraft(chId, p);
       aiRaw = '';
+      paintLen();
       try { wPv.show(true); } catch (e) {}
+    }
+
+    /* ── 글이 중간에 끊겼을 때 (분석 2026-09-05) ────────────────
+       ☠️ 예전에는 stop_reason 을 안 봤다. 길이 제한에 걸려 문장 한복판에서 멈춘 글이
+          아무 표시 없이 화면에 들어갔고, 사용자는 앱이 이상한 줄 알고 처음부터 다시 만들었다
+          — 그때마다 횟수가 또 깎였다.
+       ⚠️ 이어쓰기는 **차감하지 않는다.** 한 편을 완성하려는 같은 글의 뒷부분이고,
+          앞부분에서 이미 한 번 깎았다. 여기서 또 깎으면 잘린 게 사용자 잘못이 된다. */
+    var cutBox = ov.querySelector('#wCut');
+    function showCut(on) {
+      if (!cutBox) return;
+      if (!on) { cutBox.style.display = 'none'; cutBox.innerHTML = ''; return; }
+      cutBox.style.display = '';
+      cutBox.innerHTML = '✂️ 길이 제한에 걸려 <b>글이 중간에서 끊겼어요.</b> ' +
+        '<button type="button" class="btn sm primary" id="wCont">이어서 쓰기</button> ' +
+        '<span class="mini">(횟수는 더 깎이지 않아요)</span>';
+      cutBox.querySelector('#wCont').onclick = function () {
+        var ta3 = ov.querySelector('#wText');
+        var partial = ta3.value;
+        if (!partial.trim()) { showCut(false); return; }
+        showOverlay('끊긴 자리부터 이어서 쓰는 중...', function () { if (ClaudeAI.cancel) ClaudeAI.cancel(); });
+        ClaudeAI.continuePost(chId, partial).then(function (more) {
+          hideOverlay();
+          var tail = String(more || '').trim();
+          if (!tail) { showToast('이어질 내용을 받지 못했어요', 'err'); return; }
+          /* 사용자가 그 사이에 글을 고쳤을 수도 있다 — 지금 값 뒤에 붙인다(덮지 않는다) */
+          ta3.value = ta3.value.replace(/\s+$/, '') + '\n' + tail;
+          draftSave(p.id, chId, ta3.value);
+          paintLen();
+          showCut(ClaudeAI.wasTruncated());   /* 이어 쓴 것도 또 잘렸으면 계속 띄운다 */
+          try { if (wPv.on()) wPv.show(true); } catch (e) {}
+          showToast('이어서 썼어요', 'ok');
+        }).catch(function (e) {
+          hideOverlay();
+          if (e.code === 'CANCELLED') return;
+          showToast(e.message, 'err');
+        });
+      };
     }
     var draftBtn = ov.querySelector('#wDraft');
     if (draftBtn) draftBtn.onclick = fillDraft;
@@ -179,8 +250,12 @@
         aiRaw = t;
         ov.querySelector('#wText').value = t;
         draftSave(p.id, chId, t);   /* ☠️ 차감이 끝난 결과물이다 — 화면에만 두지 않는다 */
+        paintLen();
+        var cut = ClaudeAI.wasTruncated();
+        showCut(cut);
         wPv.show(true);   /* 마커 대신 사진이 박힌 화면으로 — 고치려면 '✏️ 글 고치기' */
-        showToast('썼어요. 고쳐서 저장하면 다음 글이 이 말투를 따라갑니다', 'ok');
+        showToast(cut ? '글이 중간에서 끊겼어요 — 아래 「이어서 쓰기」를 눌러 주세요'
+                      : '썼어요. 고쳐서 저장하면 다음 글이 이 말투를 따라갑니다', cut ? '' : 'ok');
       }).catch(function (e) {
         hideOverlay();
         if (e.code === 'CANCELLED') return;              /* 사용자가 스스로 멈춘 것 — 오류가 아니다 */
@@ -371,7 +446,8 @@
     };
     ov.querySelector('#poDel').onclick = function () {
       if (!confirm('이 글을 지울까요?')) return;
-      Store.postDelete(post.id).then(function () { ov.close(); UI.refresh(); showToast('지웠어요'); });
+      /* 지운 뒤 잠시 되돌릴 수 있다 (undo.js) — confirm 만으로는 오탭을 못 막았다 */
+      Undo.deletePost(post.id).then(function () { ov.close(); UI.refresh(); });
     };
     ov.querySelector('#poPub').onchange = commit;
   }

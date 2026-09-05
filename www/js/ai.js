@@ -24,6 +24,7 @@
   'use strict';
 
   var _abortCtl = null;   /* 진행 중인 AI 호출 (취소·시간제한용, 2026-09-05) */
+  var _lastStop = '';     /* 마지막 응답의 stop_reason — 'max_tokens' 면 글이 도중에 끊긴 것 */
   window.ClaudeAI = window.ClaudeAI || {};
   var AI = window.ClaudeAI;
 
@@ -31,7 +32,7 @@
   var CHANNELS = {
     naver: {
       label: '네이버 블로그', icon: '📝', color: 'linear-gradient(135deg,#03c75a,#02a34a)',
-      max: 30, ready: true,
+      max: 30, ready: true, len: { min: 1000, max: 1500 },
       copyHint: '전체 복사 후 네이버 블로그에 붙여넣으세요. (#·** 같은 기호가 거슬리면 "서식 없이")',
       guidePh: '예) 친근한 존댓말, 1,200자 내외, 소제목 3개, 마지막에 해시태그 7개. 가격은 방문 시점 기준이라고 밝히기.',
       defGuide:
@@ -56,7 +57,7 @@
     },
     insta: {
       label: '인스타그램', icon: '📸', color: 'linear-gradient(135deg,#f58529,#dd2a7b)',
-      max: 20, ready: true,
+      max: 20, ready: true, len: { min: 200, max: 400 },
       copyHint: '전체 복사 후 인스타그램 캡션에 붙여넣으세요.',
       guidePh: '예) 짧은 문장 + 줄바꿈 위주, 이모지 조금, 마지막에 해시태그 12개(#{카테고리태그} #지역{카테고리태그} 등).',
       defGuide:
@@ -87,7 +88,7 @@
            안 넘어와도 max 로 이미 개수를 제한해 뒀고, 글 복사는 별개로 항상 된다. */
     tistory: {
       label: '티스토리 · 브런치', icon: '✍️', color: 'linear-gradient(135deg,#ff5544,#e0402f)',
-      max: 30, ready: true,
+      max: 30, ready: true, len: { min: 1200, max: 2000 },
       copyHint: '전체 복사 후 에디터에 붙여넣으세요. PC 로 글을 쓸 땐 사진 붙여넣기 대신 위 "PC 링크"를 쓰세요.',
       guidePh: '예) 담담한 문어체, 1,500자, 소제목 3개.',
       defGuide: '- 담담한 문어체, 1,200~2,000자\n- 소제목 3~4개\n- 사진 자리 표시는 (사진: 태그이름)\n- 마지막에 해시태그 5개',
@@ -96,7 +97,7 @@
     },
     threads: {
       label: '스레드', icon: '🧵', color: 'linear-gradient(135deg,#333,#000)',
-      max: 4, ready: true,
+      max: 4, ready: true, len: { min: 60, max: 250 },
       copyHint: '전체 복사 후 스레드 새 글 작성 화면에 붙여넣으세요.',
       guidePh: '예) 3~4문장, 해시태그 2개.',
       defGuide: '- 3~4문장으로 아주 짧게\n- 해시태그 2개\n- 사진 자리 표시는 넣지 않기',
@@ -105,7 +106,7 @@
     },
     x: {
       label: 'X (트위터)', icon: '𝕏', color: 'linear-gradient(135deg,#111,#000)',
-      max: 4, ready: true,
+      max: 4, ready: true, len: { min: 0, max: 280, hard: true },
       copyHint: '전체 복사 후 X(트위터) 새 게시물 작성 화면에 붙여넣으세요.',
       guidePh: '예) 2~3문장, 280자 이내, 해시태그 1~2개.',
       defGuide: '- 2~3문장, 280자를 넘지 않게 압축\n- 해시태그 1~2개\n- 사진 자리 표시는 넣지 않기',
@@ -293,41 +294,78 @@
       eOff.code = 'OFFLINE';
       throw eOff;
     }
-    var res;
-    var ctl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
-    _abortCtl = ctl;
-    var timedOut = false;
-    var timer = setTimeout(function () { timedOut = true; if (ctl) { try { ctl.abort(); } catch (e) {} } },
-                           CFG.AI_TIMEOUT_MS || 90000);
-    try {
-      res = await fetch(CFG.PROXY_URL, {
-        method: 'POST', headers: headers, body: JSON.stringify(body),
-        signal: ctl ? ctl.signal : undefined
-      });
-    } catch (e) {
-      if (e && e.name === 'AbortError') {
-        var eAb = new Error(timedOut
-          ? '시간이 너무 오래 걸려 멈췄어요. 전파가 약한 곳이면 잠시 뒤 다시 해주세요.'
-          : '취소했어요.');
-        eAb.code = timedOut ? 'TIMEOUT' : 'CANCELLED';
-        throw eAb;
+    /* ⭐ 2026-09-05: 일시적인 실패는 한 번 더 해 본다.
+       ☠️ 예전에는 전파가 잠깐 끊기거나 서버가 502 하나만 뱉어도 그대로 실패로 끝났다.
+          사용자는 이유도 모른 채 '다시' 를 눌러야 했고, 그게 이 앱에서 가장 흔한 실패였다.
+       ⚠️ 다시 해도 되는 것만 다시 한다:
+            · 네트워크 오류, 5xx, 429  → 다시
+            · 취소·시간초과            → 절대 다시 하지 않는다 (사용자가 멈춘 것이거나 이미 오래 기다렸다)
+            · 4xx(인증·요청 잘못)      → 다시 해도 같은 답이다
+       ⚠️ 차감은 여전히 **성공한 뒤 한 번**이다(ui_posts.js) — 재시도가 횟수를 더 먹지 않는다. */
+    var RETRY_MAX = 2;              /* 첫 시도 + 최대 2번 더 */
+    var RETRY_WAIT = [700, 1800];   /* 점점 길게 — 순간적인 끊김이면 첫 번째로 대개 붙는다 */
+    var attempt = 0, data = null, res = null;
+
+    for (;;) {
+      var ctl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+      _abortCtl = ctl;
+      var timedOut = false;
+      var timer = setTimeout(function () { timedOut = true; if (ctl) { try { ctl.abort(); } catch (e) {} } },
+                             CFG.AI_TIMEOUT_MS || 90000);
+      var netErr = null;
+      res = null;
+      try {
+        res = await fetch(CFG.PROXY_URL, {
+          method: 'POST', headers: headers, body: JSON.stringify(body),
+          signal: ctl ? ctl.signal : undefined
+        });
+      } catch (e) {
+        if (e && e.name === 'AbortError') {
+          clearTimeout(timer); _abortCtl = null;
+          var eAb = new Error(timedOut
+            ? '시간이 너무 오래 걸려 멈췄어요. 전파가 약한 곳이면 잠시 뒤 다시 해주세요.'
+            : '취소했어요.');
+          eAb.code = timedOut ? 'TIMEOUT' : 'CANCELLED';
+          throw eAb;
+        }
+        netErr = e;
+      } finally {
+        clearTimeout(timer);
+        _abortCtl = null;
       }
-      throw new Error('네트워크 오류: ' + (e && e.message));
-    } finally {
-      clearTimeout(timer);
-      _abortCtl = null;
+
+      data = null;
+      if (res) { try { data = await res.json(); } catch (e) {} }
+
+      var retriable = !!netErr || (res && (res.status >= 500 || res.status === 429));
+      if (retriable && attempt < RETRY_MAX) {
+        console.warn('[AI] 다시 시도 ' + (attempt + 1) + '/' + RETRY_MAX + ' —',
+                     netErr ? netErr.message : ('HTTP ' + res.status));
+        await new Promise(function (r) { setTimeout(r, RETRY_WAIT[attempt] || 1800); });
+        attempt++;
+        continue;
+      }
+      if (netErr) throw new Error('네트워크 오류: ' + (netErr && netErr.message));
+      if (!res.ok) {
+        var msg = (data && data.error && (data.error.message || data.error)) || ('HTTP ' + res.status);
+        throw new Error('AI 서버 오류: ' + String(msg).slice(0, 180));
+      }
+      break;
     }
 
-    var data = null;
-    try { data = await res.json(); } catch (e) {}
-    if (!res.ok) {
-      var msg = (data && data.error && (data.error.message || data.error)) || ('HTTP ' + res.status);
-      throw new Error('AI 서버 오류: ' + String(msg).slice(0, 180));
-    }
+    /* ⭐ 글이 도중에 끊겼는지 — max_tokens 에 걸리면 문장 한복판에서 멈춘 글이 온다.
+       예전엔 이걸 안 보고 그대로 화면에 넣어서, 사용자가 "왜 뒤가 없지?" 하고
+       처음부터 다시 만들며 횟수만 깎였다. 호출부가 보고 알려 주도록 남겨 둔다. */
+    _lastStop = (data && data.stop_reason) || '';
+
     return ((data && data.content) || []).filter(function (b) { return b.type === 'text'; })
       .map(function (b) { return b.text; }).join('\n');
   }
   AI.callClaude = callClaude;
+
+  /* 마지막 글이 길이 제한에 걸려 잘렸나 */
+  AI.wasTruncated = function () { return _lastStop === 'max_tokens'; };
+  AI.lastStopReason = function () { return _lastStop; };
 
   /* 진행 중인 AI 호출을 끊는다 — 로딩 화면의 '취소' 가 부른다.
      ⚠️ 차감은 성공한 뒤에만 하므로(ui_posts.js), 취소해도 횟수는 그대로다. */
@@ -428,6 +466,32 @@
     return await callClaude({ max_tokens: 2400, system: sys, messages: [{ role: 'user', content: content }], model: model });
   }
   AI.generatePost = generatePost;
+
+  /* ═══ 잘린 글 이어서 쓰기 (2026-09-05) ═══════════════════
+     wasTruncated() 가 참일 때만 의미가 있다. 이미 나온 글을 assistant 차례로 되돌려주고
+     "여기서 이어서" 라고 시키면, 모델이 앞을 다시 쓰지 않고 뒤만 만들어 준다.
+     ⚠️ 사진은 다시 안 보낸다 — 뒷부분을 쓰는 데는 앞 글이면 충분하고,
+        사진을 또 실어 보내면 요금과 시간이 두 배가 된다.
+     ⚠️ 반환값은 **이어붙일 조각**이다. 앞 글까지 합쳐서 돌려주지 않는다
+        (합치는 자리를 호출부에 두어야, 사용자가 그 사이에 고친 글을 덮지 않는다). */
+  async function continuePost(chId, partial, model) {
+    var ch = CHANNELS[chId] || CHANNELS.naver;
+    var pf = Profiles.forCurrentPlace();
+    var sys = catFill(ch.sys, pf);
+    var tail = String(partial || '').slice(-1500);   /* 이어 쓰는 데 필요한 건 끝부분이다 */
+    return await callClaude({
+      max_tokens: 1600,
+      system: sys,
+      model: model,
+      messages: [
+        { role: 'user', content: '아래는 쓰다가 길이 제한에 걸려 중간에 끊긴 ' + ch.label + ' 글의 끝부분이야.\n\n' + tail },
+        { role: 'assistant', content: '알겠습니다. 끊긴 자리에서 이어서 쓰겠습니다.' },
+        { role: 'user', content: '앞부분을 다시 쓰지 말고, 끊긴 그 자리에서 자연스럽게 이어서 끝까지 마무리해줘. ' +
+                                 '설명이나 머리말 없이 이어질 본문만 써.' }
+      ]
+    });
+  }
+  AI.continuePost = continuePost;
 
   /* ═══ 여행 글 — 여러 장소를 한 편으로 ═══════════════════
      ☠️ 카테고리 함정이 새 얼굴로 나오는 지점이다(trips.js 주석 참고).

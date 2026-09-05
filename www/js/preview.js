@@ -37,6 +37,8 @@
 
   function build(text, photos, urls, tags) {
     var used = urls.map(function () { return false; });
+    var idByUrl = {};
+    urls.forEach(function (u, i) { if (u && photos[i]) idByUrl[u] = photos[i].id; });
 
     function takeTag(t) {
       var out = [];
@@ -65,8 +67,13 @@
       return takeAny();
     }
 
+    /* data-ph 를 같이 박아 둔다 — 미리보기의 사진도 눌러서 크게 볼 수 있게(viewer.js).
+       ⚠️ 복사되는 글은 여전히 마커 그대로다. 바뀌는 건 화면뿐이라는 위 원칙은 그대로다. */
     function imgs(list) {
-      return list.map(function (u) { return '<img src="' + esc(u) + '" alt="" loading="lazy">'; }).join('');
+      return list.map(function (u) {
+        var id = idByUrl[u] || '';
+        return '<img src="' + esc(u) + '"' + (id ? ' data-ph="' + esc(id) + '"' : '') + ' alt="" loading="lazy">';
+      }).join('');
     }
     function para(t) {
       t = t.trim();

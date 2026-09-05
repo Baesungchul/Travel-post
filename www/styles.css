@@ -449,3 +449,61 @@ body.cal-lock{ overflow:hidden; }
 .pf-sel-tx{ flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
 .pf-sel-tx b{ font-size:13.5px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
 .pf-sel-tx .mini{ overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+
+/* ═══ 사진 크게 보기 (viewer.js, 사용자 요청 2026-09-05) ═══
+   ⚠️ z-index 는 시트(.sheet-ov)보다 위여야 한다 — 기록 상세 시트 안에서 사진을 누르면
+      그 시트 위로 떠야 하기 때문이다. 토스트(3000)보다는 아래에 둔다(되돌리기·안내는 보여야 함).
+   ⚠️ 배경을 눌러도 안 닫는다(viewer.js 주석 ④) — 그래서 배경에 클릭 핸들러가 없다. */
+.pv-full{ position:fixed; inset:0; z-index:2600; display:none;
+          align-items:center; justify-content:center; background:#000;
+          overscroll-behavior:contain; touch-action:none; user-select:none; }
+.pv-full .pvf-img{ max-width:100%; max-height:100%; object-fit:contain;
+                   will-change:transform,opacity; -webkit-user-drag:none; }
+.pv-full .pvf-x{ position:absolute; top:calc(12px + var(--sa-top)); right:12px; z-index:3;
+                 width:42px; height:42px; border:0; border-radius:50%; cursor:pointer;
+                 background:rgba(0,0,0,.55); color:#fff; font-size:20px; line-height:1;
+                 display:flex; align-items:center; justify-content:center; }
+.pv-full .pvf-cnt{ position:absolute; top:calc(20px + var(--sa-top)); left:0; right:0; z-index:2;
+                   text-align:center; color:#fff; font-size:13px; font-weight:700;
+                   text-shadow:0 1px 4px rgba(0,0,0,.7); pointer-events:none; }
+.pv-full .pvf-nav{ position:absolute; top:50%; transform:translateY(-50%); z-index:3;
+                   width:44px; height:64px; border:0; border-radius:10px; cursor:pointer;
+                   background:rgba(0,0,0,.4); color:#fff; font-size:30px; line-height:1;
+                   align-items:center; justify-content:center; }
+.pv-full .pvf-nav.prev{ left:6px; }
+.pv-full .pvf-nav.next{ right:6px; }
+.pv-full .pvf-cap{ position:absolute; left:12px; right:12px; z-index:2;
+                   bottom:calc(64px + var(--sa-bottom)); color:#fff; font-size:13px; font-weight:600;
+                   text-align:center; line-height:1.5; text-shadow:0 1px 4px rgba(0,0,0,.8);
+                   pointer-events:none; }
+.pv-full .pvf-edit{ position:absolute; left:50%; transform:translateX(-50%); z-index:3;
+                    bottom:calc(16px + var(--sa-bottom)); border:0; border-radius:999px; cursor:pointer;
+                    background:rgba(255,255,255,.92); color:#141A16;
+                    font-size:13px; font-weight:700; padding:10px 18px; }
+
+/* ═══ 삭제 되돌리기 막대 (undo.js) ═══
+   토스트와 같은 자리(탭바 위)에 뜨지만, 이건 **눌러야 하는** 것이라 pointer-events 를 살린다. */
+/* ⚠️ 토스트(78px)보다 위에 둔다 — 오른쪽 아래 ＋ 버튼과 겹치면 되돌리기 대신 새 기록이 열린다.
+   이건 '읽고 마는' 토스트가 아니라 **눌러야 하는** 막대라서 겹침이 그대로 사고가 된다. */
+.undo-bar{ position:fixed; left:50%; bottom:calc(150px + var(--sa-bottom));
+           transform:translateX(-50%) translateY(14px);
+           display:flex; align-items:center; gap:12px; z-index:3100;
+           background:#20262A; color:#fff; font-size:13px; font-weight:600;
+           padding:9px 10px 9px 16px; border-radius:11px;
+           /* ☠️ left:50% 만 주면 쓸 수 있는 폭이 화면의 절반으로 잡혀서, 자리가 남는데도
+              글자가 "사진 1장을 …" 로 잘렸다. max-content 로 내용만큼 벌린 뒤 화면 폭으로만 막는다. */
+           width:max-content; max-width:92vw;
+           opacity:0; pointer-events:none; transition:.28s; }
+.undo-bar.show{ opacity:1; pointer-events:auto; transform:translateX(-50%) translateY(0); }
+.undo-tx{ min-width:0; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+.undo-btn{ flex:none; border:0; border-radius:8px; cursor:pointer; padding:7px 13px;
+           background:#fff; color:#141A16; font-size:13px; font-weight:800; }
+.undo-btn:active{ opacity:.75; }
+
+/* ═══ 글 길이 표시 (ui_posts.js) ═══ */
+.len-row{ display:flex; justify-content:flex-end; margin-top:6px; font-size:12px; font-weight:700; }
+.len-row #wLen{ color:var(--mu); }
+.len-row #wLen.good{ color:var(--ok); }
+.len-row #wLen.under,
+.len-row #wLen.over{ color:var(--slate); }
+.len-row #wLen.over-hard{ color:var(--wn); }

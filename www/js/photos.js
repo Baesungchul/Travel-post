@@ -14,6 +14,34 @@
   'use strict';
 
   var _urlCache = {};    // photoId → objectURL (썸네일 표시용)
+  /* ☠️ 2026-09-05: 예전엔 이 캐시에 상한이 없었다. objectURL 하나가 사진 Blob 하나를
+     통째로 붙잡기 때문에, 사진이 많은 기록을 여러 개 넘겨보면 지운 사진까지 메모리에 남아
+     앱이 무거워지다가 결국 죽었다(해제는 forget() 한 곳뿐이었다).
+     → 오래된 것부터 놓아준다. 다만 **지금 화면에 걸려 있는 URL 은 절대 놓지 않는다** —
+       쓰는 중에 revoke 하면 그 자리가 깨진 사진 아이콘으로 바뀐다. */
+  var _urlOrder = [];    // 오래된 것 → 최근 것
+  var URL_CACHE_MAX = 80;
+
+  function touch(id) {
+    var i = _urlOrder.indexOf(id);
+    if (i !== -1) _urlOrder.splice(i, 1);
+    _urlOrder.push(id);
+  }
+  function inUse(u) {
+    try { return !!document.querySelector('img[src="' + u.replace(/"/g, '\\"') + '"]'); }
+    catch (e) { return true; }   /* 확인이 안 되면 쓰는 중이라고 보고 놔둔다 (안전한 쪽) */
+  }
+  function trim() {
+    var i = 0;
+    while (_urlOrder.length - i > URL_CACHE_MAX && i < _urlOrder.length) {
+      var id = _urlOrder[i];
+      var u = _urlCache[id];
+      if (u && inUse(u)) { i++; continue; }   /* 화면에 있는 건 건너뛰고 다음 후보로 */
+      if (u) { try { URL.revokeObjectURL(u); } catch (e) {} }
+      delete _urlCache[id];
+      _urlOrder.splice(i, 1);
+    }
+  }
 
   function addFromDataUrl(dataUrl, tag) {
     var p = Place.current() || Place.create();
@@ -94,17 +122,23 @@
   function url(ref) {
     var id = (typeof ref === 'string') ? ref : (ref && ref.id);
     if (!id) return Promise.resolve('');
-    if (_urlCache[id]) return Promise.resolve(_urlCache[id]);
+    if (_urlCache[id]) { touch(id); return Promise.resolve(_urlCache[id]); }
     return resolvePhoto(id).then(function (r) {
       if (!r) return '';
       var u = URL.createObjectURL(r.blob);
       _urlCache[id] = u;
+      touch(id);
+      trim();
       return u;
     });
   }
   function forget(id) {
     if (_urlCache[id]) { try { URL.revokeObjectURL(_urlCache[id]); } catch (e) {} delete _urlCache[id]; }
+    var i = _urlOrder.indexOf(id);
+    if (i !== -1) _urlOrder.splice(i, 1);
   }
+  /* 검사기·스모크가 상한이 살아 있는지 볼 수 있게 열어 둔다 */
+  function cacheSize() { return _urlOrder.length; }
 
   function remove(photoId) {
     var p = Place.current();
@@ -171,7 +205,7 @@
     addFromDataUrl: addFromDataUrl,
     addFromFiles: addFromFiles,
     resolvePhoto: resolvePhoto,
-    url: url, forget: forget,
+    url: url, forget: forget, cacheSize: cacheSize, CACHE_MAX: URL_CACHE_MAX,
     remove: remove, setTag: setTag, setTagMany: setTagMany, move: move,
     ordered: ordered, countByTag: countByTag
   };
