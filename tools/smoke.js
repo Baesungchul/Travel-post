@@ -361,6 +361,38 @@ const EXIFB64=makeExifJpegB64();
     must(r.notice.indexOf('클라우드')<0,'클라우드 백업 문구가 남아 있음');
     return '기본 켬 · 브라우저에서는 이유를 알림';
   });
+  await chk('자동 백업 타이밍 — 현장매니저와 같은 시점에 걸려 있다', async()=>{
+    const r=await page.evaluate(async()=>{
+      const wait=ms=>new Promise(r=>setTimeout(r,ms));
+      /* (1) 이벤트 배선 — 어떤 사유로 불리는지만 본다 */
+      const seen=[]; const realDue=AutoBackup.runIfDue;
+      AutoBackup.runIfDue=async(reason)=>{ seen.push(reason); return null; };
+      Object.defineProperty(document,'visibilityState',{value:'hidden',configurable:true});
+      document.dispatchEvent(new Event('visibilitychange'));
+      Object.defineProperty(document,'visibilityState',{value:'visible',configurable:true});
+      document.dispatchEvent(new Event('visibilitychange'));
+      window.dispatchEvent(new Event('pagehide'));
+      await wait(120);
+      AutoBackup.runIfDue=realDue;
+
+      /* (2) 간격 — 복귀는 10분에 한 번. 중단 표시를 켜 두면 '바뀐 게 없어도' 도는 경로가 되므로
+            간격만 순수하게 볼 수 있다. */
+      localStorage.setItem(CFG.k('auto_backup_incomplete'),'1');
+      const ran=[]; const realRun=AutoBackup.run, realAvail=AutoBackup.available;
+      AutoBackup.available=()=>true;
+      AutoBackup.run=async(reason)=>{ ran.push(reason); return realRun.call(AutoBackup,reason).catch(()=>null); };
+      await AutoBackup.runIfDue('return-refresh');
+      await AutoBackup.runIfDue('return-refresh');   /* 곧바로 또 — 걸러져야 한다 */
+      AutoBackup.run=realRun; AutoBackup.available=realAvail;
+      localStorage.removeItem(CFG.k('auto_backup_incomplete'));
+      return {seen:seen, ran:ran};
+    });
+    must(r.seen.indexOf('hidden')>=0,'앱을 벗어날 때(hidden) 안 걸림: '+JSON.stringify(r.seen));
+    must(r.seen.indexOf('pagehide')>=0,'pagehide 에 안 걸림: '+JSON.stringify(r.seen));
+    must(r.seen.some(x=>x==='return-refresh'||x==='resume-catchup'),'복귀에 안 걸림: '+JSON.stringify(r.seen));
+    must(r.ran.length===1,'복귀가 간격 없이 연달아 돎: '+JSON.stringify(r.ran));
+    return '배선 '+JSON.stringify(r.seen)+' · 복귀 연타는 1회로 걸러짐';
+  });
   await chk('서버 백업 흔적이 남아 있지 않다', async()=>{
     const r=await page.evaluate(()=>({cb:typeof window.CloudBackup, txt:document.body.innerText}));
     must(r.cb==='undefined','CloudBackup 이 아직 로드됨');

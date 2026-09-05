@@ -29,8 +29,29 @@
   var DIR = 'DOCUMENTS';
   var OFF_LS = function () { return CFG.k('auto_backup_off'); };
   var STATE_LS = function () { return CFG.k('auto_backup_state'); };
-  var MIN_GAP_MS = 60 * 1000;        /* 너무 잦은 연속 실행 방지 */
+  /* ── 언제 도는가 — 현장매니저 auto_backup.js 와 같은 체계 (2026-09-05) ──
+     · 기본 간격 4초: 앱을 나가고 들어오기를 반복해도 연달아 돌지 않을 만큼만 막는다.
+     · 앱 복귀(return-refresh)만 10분: '바뀐 게 없어도' 매번 훑던 경로라 배터리를 먹었다
+       (현장매니저 2026-08-08 개선). 실제 변경은 저장 직후·앱 나갈 때 이미 백업된다. */
+  var MIN_GAP_MS = 4000;
+  var RETURN_REFRESH_MIN_MS = 10 * 60 * 1000;
+  var AFTER_SAVE_DEBOUNCE_MS = 8000;   /* 저장 직후, 조금 몰아서 한 번 */
   var STALE_MS = 3 * 24 * 60 * 60 * 1000;   /* 이만큼 밀리면 화면에 적는다 */
+  function minIntervalFor(reason) {
+    return (reason === 'return-refresh') ? RETURN_REFRESH_MIN_MS : MIN_GAP_MS;
+  }
+
+  /* ☠️ '이전 실행이 끝까지 못 갔다' 를 localStorage 에 남긴다.
+     모듈 변수로만 두면 스와이프(강제 종료)로 프로세스가 죽는 순간 사라져서,
+     다음에 켰을 때 이어서 할지를 알 수 없다 — 사진 복사가 중간에 끊기면
+     그 며칠치가 백업에서 통째로 빠진 채 아무도 모른다(현장매니저 2026-09-02 보강). */
+  var INCOMPLETE_LS = function () { return CFG.k('auto_backup_incomplete'); };
+  function incomplete() {
+    try { return localStorage.getItem(INCOMPLETE_LS()) === '1'; } catch (e) { return false; }
+  }
+  function setIncomplete(v) {
+    try { v ? localStorage.setItem(INCOMPLETE_LS(), '1') : localStorage.removeItem(INCOMPLETE_LS()); } catch (e) {}
+  }
 
   function FS() {
     var p = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Filesystem;
@@ -79,17 +100,21 @@
   var _running = false, _lastRun = 0;
   var _tried = false, _lastErr = '';   /* 한 번이라도 시도했는지 / 마지막 실패 이유 (화면에 그대로 보여준다) */
 
+  /* 자동 경로 — 조건이 맞을 때만 돈다. 실패해도 앱을 막지 않는다(이유는 화면에 남는다). */
   A.runIfDue = async function (reason) {
+    reason = reason || 'auto';
     if (_running || !A.available() || !A.enabled()) return null;
-    if (Date.now() - _lastRun < MIN_GAP_MS) return null;
-    var st = loadState();
-    var s;
-    try { s = await signature(); } catch (e) { return null; }
-    if (st.sig === s.sig) { _lastRun = Date.now(); return null; }   /* 바뀐 게 없다 */
+    if (Date.now() - _lastRun < minIntervalFor(reason)) return null;
+    /* 이어하기(중단됨)는 '바뀐 게 없어도' 반드시 돈다 — 못 옮긴 사진이 남아 있을 수 있다 */
+    if (!incomplete()) {
+      var st = loadState(), s;
+      try { s = await signature(); } catch (e) { return null; }
+      if (st.sig === s.sig) { _lastRun = Date.now(); return null; }   /* 바뀐 게 없다 */
+    }
     _tried = true;
-    return A.run(reason || 'auto').catch(function (e) {
+    return A.run(reason).catch(function (e) {
       _lastErr = (e && e.message) || '알 수 없는 오류';
-      console.warn('[자동백업] 실패', _lastErr);
+      console.warn('[자동백업] 실패(' + reason + ')', _lastErr);
       return null;
     });
   };
@@ -98,6 +123,10 @@
     if (_running) return null;
     if (!A.available()) throw new Error('폰에서만 됩니다 (브라우저 미리보기에서는 저장 폴더를 쓸 수 없어요)');
     _running = true;
+    /* ☠️ 간격 기준을 '시작할 때' 찍는다. 성공했을 때만 찍으면, 실패하는 동안에는
+       트리거가 올 때마다 매번 다시 돌아 배터리를 먹는다(현장매니저도 시작 시점에 찍는다). */
+    _lastRun = Date.now();
+    setIncomplete(true);   /* 여기서부터 끝까지 못 가면 '중단됨' 으로 남는다 */
     var fs = FS();
     try {
       var places = await Store.placeAll();
@@ -152,7 +181,8 @@
 
       var sg = await signature();
       saveState({ at: Date.now(), sig: sg.sig, photos: total - missing, places: places.length, reason: reason || '' });
-      _lastRun = Date.now();
+      setIncomplete(false);   /* 끝까지 갔다 */
+      _lastErr = '';
       return { added: added, photos: total - missing, places: places.length };
     } finally {
       _running = false;
@@ -238,16 +268,69 @@
     return out;
   };
 
-  /* ═══ 언제 도는가 ═══════════════════════════════════════
-     현장매니저와 같은 시점 — **앱을 벗어날 때**. 그때가 사용자를 안 기다리게 하는 유일한 순간이다.
-     + 앱을 켜고 조금 뒤 한 번(지난번에 못 끝냈을 수 있으니 이어서). */
+  /* ═══ 언제 도는가 — 현장매니저와 같은 시점 ═══════════════
+       ① 앱을 벗어날 때(hidden / pagehide / Capacitor appStateChange)
+          → 사용자를 안 기다리게 하는 순간이다. 여기가 주 경로.
+       ② 앱으로 돌아올 때 — 10분에 한 번만(배터리). 단 지난번이 중단됐으면 곧바로 이어한다.
+       ③ 콜드스타트 — 앱을 새로 켤 때 중단 표시가 남아 있으면 3초 뒤 이어한다.
+          ☠️ 새로 켠 프로세스는 문서가 처음부터 visible 이라 visibilitychange 가 아예 안 온다.
+             이 갈래가 없으면 강제 종료로 끊긴 백업이 '다음에 앱을 나갈 때까지' 방치된다.
+       ④ 저장 직후 — 8초 몰아서 한 번. 앱을 나가는 순간에만 기대면 큰 사진 복사가 끊길 때
+          최근 며칠이 통째로 빠질 수 있다. */
+  function onLeave(reason) { A.runIfDue(reason).catch(function () {}); }
+  function onReturn() { A.runIfDue(incomplete() ? 'resume-catchup' : 'return-refresh').catch(function () {}); }
+
+  var _saveT = null;
+  A.scheduleAfterSave = function () {
+    clearTimeout(_saveT);
+    _saveT = setTimeout(function () { A.runIfDue('after-save').catch(function () {}); }, AFTER_SAVE_DEBOUNCE_MS);
+  };
+
+  /* 저장·삭제가 실제로 일어나는 곳(Store 쓰기)에 걸어 둔다 —
+     화면 코드마다 '백업 예약' 을 흩뿌리면 새 화면을 만들 때 빠뜨린다. */
+  function hookStoreWrites() {
+    if (!window.Store) return;
+    ['placePut', 'placeDelete', 'photoPut', 'photoDelete',
+     'postPut', 'postDelete', 'tripPut', 'tripDelete', 'planPut', 'planDelete'].forEach(function (m) {
+      var orig = Store[m];
+      if (typeof orig !== 'function' || orig.__abHooked) return;
+      var wrapped = function () {
+        var r = orig.apply(Store, arguments);
+        try { A.scheduleAfterSave(); } catch (e) {}
+        return r;
+      };
+      wrapped.__abHooked = true;
+      Store[m] = wrapped;
+    });
+  }
+
   function start() {
     A.checkSpace();
-    setTimeout(function () { A.runIfDue('start').catch(function () {}); }, 15000);
+    hookStoreWrites();
+
     document.addEventListener('visibilitychange', function () {
-      if (document.visibilityState === 'hidden') A.runIfDue('background').catch(function () {});
+      if (document.visibilityState === 'hidden') onLeave('hidden');
+      else if (document.visibilityState === 'visible') onReturn();
     });
-    window.addEventListener('pagehide', function () { A.runIfDue('background').catch(function () {}); });
+    window.addEventListener('pagehide', function () { onLeave('pagehide'); });
+    try {
+      if (window.Capacitor && Capacitor.Plugins && Capacitor.Plugins.App) {
+        Capacitor.Plugins.App.addListener('appStateChange', function (st) {
+          if (st && st.isActive === false) onLeave('background');
+          else if (st && st.isActive === true) onReturn();
+        });
+      }
+    } catch (e) {}
+
+    /* ③ 콜드스타트 이어하기 */
+    setTimeout(function () {
+      if (incomplete()) {
+        console.warn('[자동백업] 이전 실행이 중단된 채 종료됨 → 이어하기');
+        A.runIfDue('cold-start-resume').catch(function () {});
+      }
+    }, 3000);
+    /* 켜고 조금 뒤 한 번 — 처음 설치했을 때 첫 백업이 이때 만들어진다 */
+    setTimeout(function () { A.runIfDue('start').catch(function () {}); }, 15000);
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
   else start();
