@@ -228,6 +228,16 @@ textarea.inp{ resize:vertical; min-height:78px; line-height:1.6; }
 @keyframes fl{ from{ opacity:.85; } to{ opacity:0; } }
 
 /* ── 글 편집 ── */
+/* ── 사진 미리보기 (preview.js) ── 편집 상자와 같은 자리에 번갈아 보인다 */
+.post-pv{ border:1px solid var(--bd); border-radius:11px; background:var(--sf2);
+          padding:12px 13px; max-height:52vh; overflow-y:auto; overscroll-behavior:contain;
+          font-size:14.5px; line-height:1.85; }
+.post-pv p{ margin:0 0 10px; white-space:pre-wrap; word-break:break-word; }
+.post-pv img{ display:block; width:100%; border-radius:10px; margin:4px 0 12px; }
+.post-pv .pv-empty{ color:var(--mu); font-size:12.5px; }
+.post-pv .pv-rest{ margin:6px 0 8px; padding-top:8px; border-top:1px dashed var(--bd);
+                   color:var(--mu); font-size:12px; }
+.pv-row{ display:flex; justify-content:flex-end; margin-bottom:6px; }
 .post-ta{ width:100%; min-height:44vh; border:1px solid var(--bd); border-radius:11px; background:var(--sf2);
           padding:13px; font-size:14px; line-height:1.85; font-family:inherit; color:var(--tx); resize:vertical; }
 .ch-pick{ display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px; }

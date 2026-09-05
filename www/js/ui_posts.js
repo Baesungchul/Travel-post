@@ -11,6 +11,32 @@
   'use strict';
   var UI = window.UI = window.UI || {};
 
+  /* ── 사진 미리보기 ⇄ 글 고치기 토글 (사용자 요청 2026-09-05) ──
+     ☠️ 편집 상자는 '숨기기'만 한다 — 지우면 저장·복사·공유가 읽을 값이 사라진다
+        (저장/복사/올리기는 전부 textarea.value 를 읽는다).
+     복사되는 글은 마커가 그대로 남는다. 바뀌는 건 화면뿐이다. */
+  function bindPreview(ov, taSel, pvSel, btnSel, getPlace) {
+    var ta = ov.querySelector(taSel), pv = ov.querySelector(pvSel), btn = ov.querySelector(btnSel);
+    if (!ta || !pv || !btn || !window.Preview) return { show: function () {}, on: function () { return false; } };
+    var on = false;
+    function paint() {
+      if (!on) return;
+      pv.innerHTML = '<div class="pv-empty">사진 불러오는 중…</div>';
+      Preview.render(ta.value, getPlace()).then(function (html) { pv.innerHTML = html; })
+        .catch(function () { pv.innerHTML = '<div class="pv-empty">미리보기를 만들지 못했어요.</div>'; });
+    }
+    function show(v) {
+      on = !!v;
+      ta.style.display = on ? 'none' : '';
+      pv.style.display = on ? '' : 'none';
+      btn.textContent = on ? '✏️ 글 고치기' : '🖼 사진으로 보기';
+      paint();
+    }
+    btn.onclick = function () { show(!on); };
+    show(false);
+    return { show: show, on: function () { return on; } };
+  }
+
   /* trip 을 넘기면 **여행기 모드**다 — 여러 장소를 한 편으로 묶어 쓴다.
      ⚠️ 공유·PC 링크는 Trips.asPlace 로 만든 '가상 장소'를 그대로 넘긴다.
         그래서 아래 공유 코드는 장소 하나일 때와 같은 코드다(분기 없음). */
@@ -47,13 +73,19 @@
         (CFG.hasProxy() ? '' :
           '<div class="notice">⚠️ AI 프록시가 아직 설정되지 않았습니다(js/config.js 의 PROXY_URL). ' +
           '지금 나오는 것은 <b>AI 글이 아니라</b> 메모·태그로 짠 뼈대입니다.</div>') +
+        '<div class="pv-row"><button type="button" class="btn ghost sm" id="wPvBtn">🖼 사진으로 보기</button></div>' +
         '<textarea class="post-ta" id="wText" placeholder="여기에 글이 만들어집니다. 그대로 고쳐도 됩니다.">' +
           esc((existingPost && existingPost.text) || '') + '</textarea>' +
+        '<div class="post-pv" id="wPv" style="display:none;"></div>' +
         '<div class="mini" id="wHintCopy" style="margin-top:6px;"></div>',
       foot: '<button class="btn ghost" id="wSave">저장</button>' +
             '<button class="btn ghost" id="wCopy">📋 복사</button>' +
             '<button class="btn primary" id="wShare">📤 올리기</button>'
     });
+
+    var wPv = bindPreview(ov, '#wText', '#wPv', '#wPvBtn', function () { return p; });
+    /* 이미 글이 있는 채로 열렸으면(저장된 글 다시 열기) 곧바로 사진으로 보여준다 */
+    if ((existingPost && existingPost.text || '').trim()) wPv.show(true);
 
     function setCh(k) {
       chId = k;
@@ -71,6 +103,7 @@
         ? ClaudeAI.localTripDraft(trip, tripPlaces)
         : ClaudeAI.localDraft(chId, p);
       aiRaw = '';
+      try { wPv.show(true); } catch (e) {}
     }
     var draftBtn = ov.querySelector('#wDraft');
     if (draftBtn) draftBtn.onclick = fillDraft;
@@ -91,6 +124,7 @@
         if (qe) qe.textContent = Subs.label('post');
         aiRaw = t;
         ov.querySelector('#wText').value = t;
+        wPv.show(true);   /* 마커 대신 사진이 박힌 화면으로 — 고치려면 '✏️ 글 고치기' */
         showToast('썼어요. 고쳐서 저장하면 다음 글이 이 말투를 따라갑니다', 'ok');
       }).catch(function (e) {
         hideOverlay();
@@ -213,13 +247,18 @@
       body:
         '<div class="mini">' + esc(placeLabel(place)) + ' · ' +
           new Date(post.createdAt).toLocaleString('ko-KR') + '</div>' +
+        '<div class="pv-row"><button type="button" class="btn ghost sm" id="poPvBtn">🖼 사진으로 보기</button></div>' +
         '<textarea class="post-ta" id="poText">' + esc(post.text) + '</textarea>' +
+        '<div class="post-pv" id="poPv" style="display:none;"></div>' +
         '<label class="chk" style="margin-top:8px;"><input type="checkbox" id="poPub"' +
           (post.published ? ' checked' : '') + '><span>발행 완료로 표시</span></label>',
       foot: '<button class="btn danger sm" id="poDel">삭제</button>' +
             '<button class="btn ghost" id="poCopy">📋 복사</button>' +
             '<button class="btn primary" id="poShare">📤 올리기</button>'
     });
+    var poPv = bindPreview(ov, '#poText', '#poPv', '#poPvBtn', function () { return place; });
+    if (String(post.text || '').trim()) poPv.show(true);   /* 완성글은 사진이 보이는 쪽이 기본 */
+
     function commit() {
       post.text = ov.querySelector('#poText').value;
       post.published = ov.querySelector('#poPub').checked;

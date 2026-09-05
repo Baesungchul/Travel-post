@@ -8,7 +8,7 @@ var SHELL = [
   './js/config.js', './js/version.js', './js/tokens.js', './js/categories.js',
   './js/profiles.js', './js/store.js', './js/state.js', './js/image.js',
   './js/native-fs.js', './js/exif.js', './js/photos.js', './js/geo.js', './js/camera.js',
-  './js/cloud.js', './js/iap.js', './js/ads.js', './js/subscription.js', './js/ai.js', './js/share.js',
+  './js/cloud.js', './js/iap.js', './js/ads.js', './js/subscription.js', './js/ai.js', './js/preview.js', './js/share.js',
   './js/backup.js', './js/cloud_backup.js', './js/map.js', './js/trips.js', './js/plans.js', './js/calendar.js', './js/tabbar.js',
   './js/ui_now.js', './js/ui_records.js', './js/ui_posts.js', './js/ui_settings.js',
   './js/app.js',
