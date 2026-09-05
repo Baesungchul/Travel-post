@@ -66,18 +66,21 @@
       '<label class="chk"><input type="checkbox" id="stLearnOff"' + (ClaudeAI.learnOff() ? ' checked' : '') +
         '><span>학습 끄기</span></label>';
 
+    /* ⭐ 2026-09-05 사용자 요청: 계정을 별개 항목으로 빼서 맨 위로, 로그인/로그아웃은 맨 아래 작은 글자로.
+       그래서 여기에는 **버튼을 두지 않는다** — 로그인/로그아웃은 화면 맨 아래 한 곳에만 있다.
+       ⚠️ 로그아웃 상태에서 여기만 보면 '어디서 로그인하지?' 가 되므로 그 자리를 글로 알려 준다
+          (막다른 길 금지 — 왜 못 쓰는지/어디서 하는지를 그 자리에 적는다). */
     SEC['계정'] =
       (Cloud.ready
         ? (Cloud.loggedIn()
             ? '<div class="set-row"><div><div class="k">' + esc(Cloud.user.email || '로그인됨') + '</div>' +
-                '<div class="d">로그인하면 매달 무료 글 생성 횟수가 계정에 붙습니다</div></div>' +
-                '<button class="btn sm ghost sp" id="acOut">로그아웃</button></div>' +
+                '<div class="d">이 계정에 매달 무료 글 생성 횟수가 붙습니다</div></div></div>' +
               '<div class="set-row"><div><div class="k">계정 삭제</div>' +
                 '<div class="d">계정과 서버에 올린 사진을 지웁니다. <b>이 기기의 사진·기록은 그대로 남습니다</b></div></div>' +
                 '<button class="btn sm danger sp" id="acDel">삭제</button></div>'
             : '<div class="set-row"><div><div class="k">로그인 안 됨</div>' +
-                '<div class="d">' + esc(Subs.label('post')) + '</div></div>' +
-                '<button class="btn sm primary sp" id="acIn">로그인</button></div>')
+                '<div class="d">' + esc(Subs.label('post')) + '</div></div></div>' +
+              '<div class="mini" style="margin-top:8px;">화면 <b>맨 아래 「로그인」</b>을 누르면 계정에 무료 횟수가 붙습니다.</div>')
         : '<div class="todo"><b>아직 로그인을 켤 수 없습니다</b><div class="mini">' + esc(Cloud.why) + '</div></div>');
 
     SEC['백업'] =
@@ -142,19 +145,24 @@
         '로그인·백업은 다음 단계(설계안 9장 3단계)입니다.</div>';
 
     /* ── 큰 타이틀 3개로 묶는다 (현장매니저의 그룹 나누기 방식 참고) ── */
+    /* flat 을 주면 소타이틀 없이 그 내용을 바로 편다 — 항목이 하나뿐인데 두 번 누르게 하지 않는다.
+       ⭐ 2026-09-05 사용자 요청으로 '계정' 을 맨 위 단독 항목으로 뺐다. */
     var GROUPS = [
+      { key: 'acct', icon: '👤', name: '계정',
+        desc: (Cloud.ready && Cloud.loggedIn()) ? (Cloud.user.email || '로그인됨') : '로그인 · 계정 삭제',
+        flat: '계정' },
       { key: 'write', icon: '📍', name: '카테고리 · 글쓰기', desc: '카테고리 · 채널별 지침 · 교정 학습',
         subs: ['카테고리', '채널별 글쓰기 지침', '글 교정 학습'] },
-      { key: 'acct', icon: '👤', name: '계정 · 백업 · 이용량', desc: '로그인 · 백업 · 글 생성 이용량',
-        subs: ['계정', '백업', '이용량'] },
+      { key: 'data', icon: '💾', name: '백업 · 이용량', desc: '백업 · 글 생성 이용량',
+        subs: ['백업', '이용량'] },
       { key: 'disp', icon: '🎨', name: '화면 · 정보', desc: '테마 · 글자 크기 · 앱 정보',
         subs: ['화면', '정보'] }
     ];
-    if (SEC['관리자']) GROUPS[1].subs.push('관리자');   // 계정 그룹 안에 관리자 전용 소타이틀을 더한다
+    if (SEC['관리자']) GROUPS.push({ key: 'admin', icon: '👑', name: '관리자', desc: '쿠폰 · 사용자 관리', flat: '관리자' });
 
     function groupHTML(g) {
       var open = _accG === g.key;
-      var subsHTML = g.subs.map(function (t) {
+      var subsHTML = (g.subs || []).map(function (t) {   /* flat 항목은 subs 가 없다 */
         var subOpen = open && _accS === t;
         return '<div class="set-sub' + (subOpen ? ' open' : '') + '">' +
           '<div class="set-sub-head" data-g="' + g.key + '" data-s="' + esc(t) + '">' +
@@ -162,6 +170,7 @@
           '<div class="set-sub-body">' + (subOpen ? SEC[t] : '') + '</div>' +
         '</div>';
       }).join('');
+      var bodyHTML = g.flat ? (open ? (SEC[g.flat] || '') : '') : (open ? subsHTML : '');
       return '<div class="set-group' + (open ? ' open' : '') + '">' +
         '<div class="set-group-head" data-g="' + g.key + '">' +
           '<div style="display:flex;align-items:center;gap:10px;min-width:0;">' +
@@ -173,7 +182,7 @@
           '</div>' +
           '<span class="set-group-arrow">▸</span>' +
         '</div>' +
-        '<div class="set-group-body">' + (open ? subsHTML : '') + '</div>' +
+        '<div class="set-group-body">' + bodyHTML + '</div>' +
       '</div>';
     }
 
@@ -187,7 +196,18 @@
             return '<div class="todo"><b>' + esc(m.k) + '</b><div class="mini">' + esc(m.why) + '</div></div>';
           }).join('') +
         '</div>' : '') +
-      GROUPS.map(groupHTML).join('');
+      GROUPS.map(groupHTML).join('') +
+      /* ⭐ 2026-09-05 사용자 요청: 맨 아래에 로그인/로그아웃(작은 글자) + 앱명·버전.
+         ⚠️ 로그인을 켤 수 없는 상태(Cloud.ready=false)면 버튼을 아예 안 만든다 — 눌러도 안 되는 글자를 두지 않는다.
+         버전은 version.js 의 APP_VERSION 하나만 본다(build.gradle 의 versionName 과 같게 유지). */
+      '<div class="set-foot">' +
+        (Cloud.ready
+          ? '<button type="button" class="set-foot-link" id="acAuth">' +
+              (Cloud.loggedIn() ? '로그아웃' : '로그인') + '</button>' +
+            '<span class="set-foot-sep">·</span>'
+          : '') +
+        '<span class="set-foot-app">찍고쓰다 v' + esc(window.APP_VERSION || '') + '</span>' +
+      '</div>';
 
     Store.estimate().then(function (e) {
       var u = el.querySelector('#stUsage');
@@ -214,9 +234,10 @@
 
     /* ── 섹션 안쪽 바인딩 — 열린 섹션만 DOM 에 있으므로 전부 '있으면만' 건다 ── */
     var q = function (sel, fn) { var e = el.querySelector(sel); if (e) e.onclick = fn; };
-    q('#acIn', function () { UI.openLogin(); });
-    q('#acOut', function () {
-      Cloud.signOut().then(function () { showToast('로그아웃했어요'); UI.renderSettings(); });
+    q('#acAuth', function () {
+      if (Cloud.loggedIn()) {
+        Cloud.signOut().then(function () { showToast('로그아웃했어요'); UI.renderSettings(); });
+      } else UI.openLogin();
     });
     q('#acDel', function () { openDeleteAccount(); });
     q('#bkOpen', function () { Backup.openSheet(); });
