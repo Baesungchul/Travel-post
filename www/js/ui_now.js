@@ -210,7 +210,7 @@
           '<div style="font-size:38px;margin-bottom:10px;">📷</div>' +
           '<b>' + esc(catFill('{장소호칭} 하나 = 글 하나', pf)) + '</b><br>' +
           '아래 ＋ 를 눌러 시작하세요.<br>' +
-          '<span class="mini">찍고 나오면 글이 거의 완성돼 있어요.</span>' +
+          '<span class="mini">' + esc(CFG.APP_TAGLINE) + '</span>' +
         '</div>';
       return;
     }

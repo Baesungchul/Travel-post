@@ -162,6 +162,24 @@ if (fs.existsSync(path.join(AND, 'drawable-v24', 'ic_launcher_foreground.xml')))
 });
 if (!fails) ok('앱 아이콘이 웹·앱 안·런처 다섯 해상도까지 같은 그림');
 
+/* ⚠️ 2026-09-06: 한 줄 설명(APP_TAGLINE)도 아이콘과 같은 병을 앓았다 —
+   config.js 에 값이 있는데 아무도 안 쓰고, 헤더·설정·빈 화면이 각자 같은 문장을 박아 뒀다.
+   한 곳만 고치면 나머지가 옛 문장으로 남는다(오류는 안 난다).
+   → 이제 셋 다 CFG.APP_TAGLINE 을 읽는다. 문장을 다시 박아 넣으면 여기서 잡는다. */
+const tagline = (read(path.join(JS, 'config.js')).match(/APP_TAGLINE:\s*'([^']+)'/) || [])[1];
+if (!tagline) bad('config.js 에서 APP_TAGLINE 을 읽지 못했습니다');
+else {
+  [['index.html', path.join(WWW, 'index.html')],
+   ['ui_settings.js', path.join(JS, 'ui_settings.js')],
+   ['ui_now.js', path.join(JS, 'ui_now.js')]].forEach(([label, f]) => {
+    if (read(f).indexOf(tagline) >= 0)
+      bad(label + ' 에 한 줄 설명이 그대로 박혀 있습니다 — CFG.APP_TAGLINE 을 읽어야 합니다');
+  });
+  if (read(path.join(JS, 'version.js')).indexOf('APP_TAGLINE') < 0)
+    bad('version.js 가 헤더의 한 줄 설명을 채우지 않습니다 (#appTagline 이 빈칸으로 남습니다)');
+  ok('한 줄 설명이 config.js 한 곳에서만 나온다: "' + tagline + '"');
+}
+
 /* ── ⑥ 자리표시자 ── */
 console.log('\n[6] 아직 안 채운 설정값 (배포 전 확인)');
 const cfg = read(path.join(JS, 'config.js'));

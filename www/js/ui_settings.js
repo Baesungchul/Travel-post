@@ -221,7 +221,7 @@
       '<div class="set-brand">' +
         '<div class="set-brand-ic">' + APP_MARK + '</div>' +
         '<div class="set-brand-tx">찍고쓰다</div>' +
-        '<div class="set-brand-sb">찍고 나오면 글이 완성돼 있어요</div>' +
+        '<div class="set-brand-sb">' + esc(CFG.APP_TAGLINE) + '</div>' +
       '</div>' +
       (miss.length ?
         '<div class="card">' +
