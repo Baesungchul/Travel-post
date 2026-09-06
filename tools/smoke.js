@@ -690,17 +690,26 @@ const EXIFB64=makeExifJpegB64();
     must(r.withFt.bd<48, '버튼줄이 있는데 본문까지 여백을 먹어 이중이 됐다 ('+r.withFt.bd+'px)');
     return '버튼줄 없음 '+r.none.bd+'px · 있음 본문'+r.withFt.bd+'px+버튼줄'+r.withFt.ft+'px';
   });
-  await chk('설정 — 구독 항목이 첫 화면에 있고 광고 제거로 이어진다', async()=>{
+  /* ☠️ 2026-09-06 사용자 요청 "누르면 바로 구독화면" — 한 번 눌러서 열려야 한다.
+     펼쳤다가 안에서 또 누르게 되돌아가면 여기서 걸린다. */
+  await chk('설정 — 구독 항목을 한 번 누르면 바로 요금제 화면', async()=>{
     const r=await page.evaluate(async()=>{
       UI.switchTab('settings');
-      const names=[...document.querySelectorAll('#pnSettings .set-grp-name, #pnSettings .set-g-name, #pnSettings [class*="name"]')]
-        .map(e=>e.textContent.trim());
       const txt=document.getElementById('pnSettings').textContent;
-      const hit=txt.indexOf('구독')>=0 && txt.indexOf('광고 제거')>=0;
-      return {hit, names, has:txt.indexOf('구독 · 광고 제거')>=0};
+      const head=[...document.querySelectorAll('#pnSettings .set-group-head')]
+        .filter(e=>e.textContent.indexOf('구독 · 광고 제거')>=0)[0];
+      if(!head) return {has:false};
+      head.click();
+      await new Promise(r=>setTimeout(r,250));
+      const titles=[...document.querySelectorAll('.sheet-ti')].map(e=>e.textContent).join('|');
+      const expanded=head.parentElement.classList.contains('open');
+      document.querySelectorAll('.sheet-ov').forEach(e=>e.remove()); syncBodyLock();
+      return {has:txt.indexOf('구독 · 광고 제거')>=0, titles, expanded};
     });
-    must(r.has, '설정 첫 화면에 「구독 · 광고 제거」 항목이 없다: '+JSON.stringify(r.names).slice(0,200));
-    return '설정 첫 화면에 구독 항목 있음';
+    must(r.has, '설정 첫 화면에 「구독 · 광고 제거」 항목이 없다');
+    must(/구독/.test(r.titles), '한 번 눌렀는데 요금제 화면이 안 열렸다 (열린 창: "'+r.titles+'")');
+    must(!r.expanded, '요금제 화면 대신 항목이 펼쳐졌다 — 두 번 눌러야 한다');
+    return '한 번 눌러서 "'+r.titles+'" 열림';
   });
   await chk('광고 제거 칩 — 광고가 뜰 때만 보이고 누르면 요금제로 간다', async()=>{
     const r=await page.evaluate(async()=>{

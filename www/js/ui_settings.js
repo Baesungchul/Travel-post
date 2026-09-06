@@ -151,19 +151,10 @@
 
     /* ⭐ 2026-09-06 사용자 요청: "설정에 구독 항목이 없어졌어" —
        구독은 「백업 · 이용량」 안쪽 두 단계 밑에 '요금제' 버튼으로만 있어서 사실상 안 보였다.
-       맨 위 단독 항목으로 꺼낸다. 여기서 요금제 화면(Subs.openPlans)으로 바로 간다. */
+       맨 위 단독 항목으로 꺼냈다.
+       ⭐ 같은 날 두 번째 요청: "누르면 바로 구독화면이 나오게" — 펼쳐서 다시 누르게 하지 말 것.
+          그래서 이 항목만 SEC(펼칠 내용) 없이 GROUPS 의 go() 로 요금제 화면을 바로 연다. */
     var paid = Subs.isPaid();
-    SEC['구독'] =
-      '<div class="set-row"><div><div class="k">' + (paid ? esc(Subs.planLabel()) : '무료') + '</div>' +
-        '<div class="d">' + esc(Subs.label('post')) + '</div></div>' +
-        '<button class="btn sm primary sp" id="subOpen">' + (paid ? '요금제 보기' : '구독하기') + '</button></div>' +
-      (paid
-        ? '<div class="mini">구독 중에는 광고가 나오지 않습니다. 해지·결제수단 변경은 Play 스토어 앱의 정기 결제 메뉴에서 하실 수 있어요.</div>'
-        : '<div class="set-row"><div><div class="k">광고 제거</div>' +
-            '<div class="d">구독하면 상단 배너 광고가 사라집니다</div></div>' +
-            '<button class="btn sm ghost sp" id="subAdOff">광고 제거</button></div>' +
-          '<div class="mini">구독하지 않아도 광고를 보고 글 생성 횟수를 늘릴 수 있어요. ' +
-            '촬영·정리·백업은 늘 무료입니다.</div>');
 
     SEC['화면'] =
       '<div class="set-row"><div class="k">어두운 모드</div>' +
@@ -195,10 +186,11 @@
       { key: 'acct', icon: '👤', name: '계정',
         desc: (Cloud.ready && Cloud.loggedIn()) ? (Cloud.user.email || '로그인됨') : '로그인 · 계정 삭제',
         flat: '계정' },
-      /* ⭐ 2026-09-06 사용자 요청 — 구독은 계정 바로 밑 단독 항목. 안쪽에 묻어 두지 말 것 */
+      /* ⭐ 2026-09-06 사용자 요청 — 구독은 계정 바로 밑 단독 항목. 안쪽에 묻어 두지 말 것.
+         go 를 준 항목은 **펼치지 않고 바로 그 화면을 연다**(사용자 요청: "누르면 바로 구독화면"). */
       { key: 'sub', icon: '💳', name: '구독 · 광고 제거',
-        desc: paid ? (Subs.planLabel() + ' · 광고 없음') : '무료 · 구독하면 광고가 사라집니다',
-        flat: '구독' },
+        desc: paid ? (Subs.planLabel() + ' · 광고 없음') : (Subs.label('post') + ' · 구독하면 광고가 사라집니다'),
+        go: function () { Subs.openPlans(paid ? '구독' : '구독 · 광고 제거', Subs.label('post')); } },
       { key: 'write', icon: '📍', name: '카테고리 · 글쓰기', desc: '카테고리 · 채널별 지침 · 교정 학습',
         subs: ['카테고리', '채널별 글쓰기 지침', '글 교정 학습'] },
       { key: 'data', icon: '💾', name: '백업 · 이용량', desc: '백업 · 글 생성 이용량',
@@ -218,8 +210,9 @@
           '<div class="set-sub-body">' + (subOpen ? SEC[t] : '') + '</div>' +
         '</div>';
       }).join('');
-      var bodyHTML = g.flat ? (open ? (SEC[g.flat] || '') : '') : (open ? subsHTML : '');
-      return '<div class="set-group' + (open ? ' open' : '') + '">' +
+      /* go 항목은 펼칠 내용 자체가 없다 — 눌리면 곧바로 그 화면이 뜬다 */
+      var bodyHTML = g.go ? '' : (g.flat ? (open ? (SEC[g.flat] || '') : '') : (open ? subsHTML : ''));
+      return '<div class="set-group' + (open && !g.go ? ' open' : '') + '">' +
         '<div class="set-group-head" data-g="' + g.key + '">' +
           '<div style="display:flex;align-items:center;gap:10px;min-width:0;">' +
             '<span style="font-size:18px;">' + g.icon + '</span>' +
@@ -274,6 +267,9 @@
     el.querySelectorAll('.set-group-head').forEach(function (b) {
       b.onclick = function () {
         var g = b.getAttribute('data-g');
+        /* go 를 가진 항목은 펼치지 않고 바로 그 화면을 연다 (2026-09-06 사용자 요청) */
+        var def = GROUPS.filter(function (x) { return x.key === g; })[0];
+        if (def && def.go) { def.go(); return; }
         _accG = (_accG === g) ? null : g;
         _accS = null;   // 그룹을 새로 열면 소타이틀은 다시 접힌 채로 시작
         UI.renderSettings();
@@ -325,8 +321,6 @@
       }).catch(function (e) { hideOverlay(); showToast(e.message, 'err'); });
     });
     q('#subPlans', function () { Subs.openPlans('요금제', Subs.label('post')); });
-    q('#subOpen', function () { Subs.openPlans('구독', Subs.label('post')); });
-    q('#subAdOff', function () { Subs.openPlans('광고 제거', '구독하면 광고가 사라집니다.'); });
     q('#adCoupon', function () { Subs.openCouponAdmin(); });
     q('#adUsers', function () { Subs.openUserAdmin(); });
     q('#stAddCat', UI.openCategoryPicker);
