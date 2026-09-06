@@ -642,6 +642,33 @@ const EXIFB64=makeExifJpegB64();
     must(folders.length>=2, '기록 두 건인데 폴더가 '+folders.length+'개: '+JSON.stringify(folders));
     return '기록 '+folders.length+'건 → 폴더 '+folders.length+'개 · 예: '+folders[0];
   });
+  /* ☠️ 2026-09-06 — 사용자 지적 "현장매니저는 사진이 움직이는데 찍고쓰다는 흐려지기만 해".
+     연출이 망가져도 오류는 안 나므로, 새 사진이 실제로 화면 밖에서 들어오는지 좌표로 본다. */
+  await chk('사진 넘기기 — 새 사진이 반대편에서 밀려 들어온다', async()=>{
+    const r=await page.evaluate(async()=>{
+      const svg=c=>'data:image/svg+xml;base64,'+btoa(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="600" height="400"><rect width="600" height="400" fill="'+c+'"/></svg>');
+      const U={s1:svg('#c0392b'),s2:svg('#2980b9'),s3:svg('#27ae60')};
+      const real=Photos.url;
+      Photos.url=id=>Promise.resolve(U[id]);
+      const wait=ms=>new Promise(r=>setTimeout(r,ms));
+      const x=()=>{const im=document.querySelector('.pv-full .pvf-img');
+        return im?Math.round(new DOMMatrix(getComputedStyle(im).transform).m41):null;};
+      Viewer.open(['s1','s2','s3'],'s1');
+      await wait(600);                        // 앞뒤 미리 읽기(warm)가 끝날 때까지
+      document.querySelector('.pv-full .pvf-nav.next').click();
+      await wait(120); const out=x();         // 나가는 중
+      await wait(75);  const inn=x();         // 막 들어오기 시작
+      await wait(280); const end=x();         // 자리 잡음
+      Viewer.close();
+      Photos.url=real;
+      return {out,inn,end,W:window.innerWidth};
+    });
+    must(r.out<-40, '나가는 사진이 안 밀림 (x='+r.out+')');
+    must(r.inn>r.W*0.3, '새 사진이 반대편에서 안 들어옴 — 옛날 페이드로 되돌아갔다 (x='+r.inn+')');
+    must(Math.abs(r.end)<5, '제자리로 안 돌아옴 (x='+r.end+')');
+    return '나감 '+r.out+'px → 들어옴 +'+r.inn+'px → 제자리 '+r.end+'px';
+  });
   await chk('사진 URL 캐시에 상한이 있다', async()=>{
     const r=await page.evaluate(()=>({max:Photos.CACHE_MAX, now:Photos.cacheSize()}));
     must(typeof r.max==='number'&&r.max>0,'상한이 없음 — 사진 Blob 이 계속 쌓인다');

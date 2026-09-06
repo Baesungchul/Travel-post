@@ -122,7 +122,11 @@ const gates = [
   ['../styles.css', 'max-width:95vw; max-height:92vh', '사진 뷰어 사진 여백이 현장매니저와 같음'],
   ['ui_posts.js', 'deriveTitle', '완성글 제목 폴백 (제목을 안 정한 옛 글도 목록에 보여야 한다)'],
   ['ai.js',       'TITLE_MODEL', '제목 짓기는 값싼 모델로 (본문과 같은 모델을 쓸 이유가 없다)'],
-  ['ui_posts.js', '순위를 보장하지는', '제목 후보에 "검색 순위는 보장 못 한다" 고지 (AI 가 정답을 준 것처럼 보이면 안 된다)']
+  ['ui_posts.js', '순위를 보장하지는', '제목 후보에 "검색 순위는 보장 못 한다" 고지 (AI 가 정답을 준 것처럼 보이면 안 된다)'],
+  /* ★ 2026-09-06 추가 — 사진 넘기기 연출. 빠져도 오류가 안 나고 조용히 옛날 페이드로 되돌아간다 */
+  ['viewer.js',   'warmNeighbors', '앞뒤 사진 미리 읽기 (없으면 넘길 때 빈 사각형이 따라 들어온다)'],
+  ['viewer.js',   'pre.decode', '미리 읽기를 디코딩까지 (URL 만 받아 두면 여전히 늦다)'],
+  ['viewer.js',   'void im.offsetWidth', '슬라이드 인 시작 위치를 스타일에 강제 반영 (빼면 새 사진이 나간 쪽에서 되돌아온다)']
 ];
 gates.forEach(([f, needle, label]) => {
   const src = read(path.join(JS, f));

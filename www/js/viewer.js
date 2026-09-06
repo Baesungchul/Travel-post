@@ -7,9 +7,13 @@
 
    ⚠️ 현장매니저 events.js 의 사진 뷰어를 그대로 옮겨 온 규칙들 —
       그쪽에서 실제로 손봐 가며 정한 값이라 임의로 바꾸지 말 것:
-      ① 넘기기는 **슬라이드 아웃 → 제자리 페이드 인**이다.
-         손가락을 따라 밀리게 하면 IndexedDB 에서 다음 사진을 읽어 오는 사이
-         빈 화면이 따라와서 더 끊겨 보인다. 애니메이션이 로딩을 가려 준다.
+      ① 넘기기 연출 (2026-09-06 개선, 사용자 지적: "그냥 흐려지기만 해"):
+         · 다음/이전 사진을 **미리 읽어 두었으면** 나가는 사진은 밀려 나가고
+           들어오는 사진은 반대편에서 밀려 들어온다 — 사진이 움직이는 게 보인다.
+         · 아직 못 읽었으면 예전대로 **슬라이드 아웃 → 제자리 페이드 인**.
+           안 읽힌 사진을 밀어 넣으면 빈 사각형이 따라 들어와서 더 끊겨 보인다.
+         ☠️ 그래서 미리 읽기(warm)를 없애면 안 된다. 없애는 순간 연출이
+            통째로 옛날 페이드로 되돌아간다.
       ② 확대(줌 > 1.01) 중에는 스와이프를 막는다. 안 막으면 확대한 사진을
          손으로 옮기려다 계속 다음 장으로 넘어가 버린다.
       ③ 스와이프 판정: 가로 45px 이상 + 세로보다 1.3배 이상 + (60px 이상이거나 0.4초 이내).
@@ -32,6 +36,7 @@
   var _unreg = null;      // 뒤로가기 스택에서 빼는 함수
   var _onEdit = null;     // '✏️ 태그 · 메모' 를 눌렀을 때 (「지금」 탭에서만 넘어온다)
   var _zoom = 1, _panX = 0, _panY = 0;
+  var _warm = {};         // 사진 id → 이미 읽고 디코딩까지 끝난 URL (앞뒤 한 장씩만)
 
   function img() { return _el && _el.querySelector('.pvf-img'); }
   function W() { return window.innerWidth || 360; }
@@ -79,17 +84,53 @@
     return _el;
   }
 
+  /* ── 앞뒤 한 장씩 미리 읽어 두기 ──
+     URL 만 받아 놓는 걸로는 부족하다. 큰 사진은 <img> 에 붙인 뒤 디코딩하는 데
+     또 한참 걸려서, src 를 넣어도 다음 몇 프레임 동안 빈 자리로 남는다.
+     그래서 decode() 까지 끝난 것만 '준비됨(_warm)' 으로 친다. */
+  function warm(i) {
+    if (i < 0 || i >= _ids.length) return;
+    var id = _ids[i];
+    if (!id || _warm[id]) return;
+    Photos.url(id).then(function (u) {
+      if (!u) return;
+      var pre = new Image();
+      var done = function () { _warm[id] = u; };
+      pre.onload = done;
+      pre.onerror = function () {};
+      pre.src = u;
+      if (pre.decode) pre.decode().then(done, function () {});
+    }).catch(function () {});
+  }
+
+  /* 지금 보는 장에서 두 칸 넘게 떨어진 건 버린다 (URL 자체는 photos.js 캐시가 관리한다) */
+  function trimWarm() {
+    var keep = {};
+    for (var k = _idx - 2; k <= _idx + 2; k++) if (_ids[k]) keep[_ids[k]] = 1;
+    Object.keys(_warm).forEach(function (id) { if (!keep[id]) delete _warm[id]; });
+  }
+
+  function warmNeighbors() { trimWarm(); warm(_idx - 1); warm(_idx + 1); }
+
   /* ── 한 장 화면에 올리기 ── */
   function load(i) {
     var im = img();
     if (!im) return;
     var id = _ids[i];
+    if (_warm[id]) {
+      /* 이미 준비된 사진은 지우지 않고 바로 갈아 끼운다 — 깜빡임이 없다 */
+      im.src = _warm[id];
+      paint();
+      warmNeighbors();
+      return;
+    }
     im.removeAttribute('src');
     Photos.url(id).then(function (u) {
       /* 읽는 사이에 사용자가 또 넘겼을 수 있다 — 지금 보고 있는 장이 맞을 때만 그린다 */
       if (u && _idx === i && _el && _el.style.display === 'flex') im.src = u;
     }).catch(function () {});
     paint();
+    warmNeighbors();
   }
 
   /* 장수 표시 · 화살표 · 태그 캡션 */
@@ -116,7 +157,9 @@
     ce.style.display = cap ? 'block' : 'none';
   }
 
-  /* ── 넘기기 (현장매니저와 같은 연출: 밀려 나가고, 새 사진은 제자리에서 나타남) ── */
+  /* ── 넘기기 ──
+     준비된 사진이면  : 나가는 사진 밀려 나감 → 들어오는 사진 반대편에서 밀려 들어옴
+     아직 못 읽었으면 : 나가는 사진 밀려 나감 → 제자리 페이드 인 (예전 연출) */
   function go(dir) {
     if (_anim || _ids.length < 2) return;
     var n = _idx + dir;
@@ -125,19 +168,47 @@
     if (!im) { _idx = n; load(n); return; }
     resetZoom();
     _anim = true;
+    var out = (dir > 0 ? -W() : W());
+    var nextUrl = _warm[_ids[n]] || '';
+    var unlock = function () { _anim = false; im.style.transition = ''; };
+
     im.style.transition = 'transform .16s ease-in, opacity .16s ease-in';
-    im.style.transform = 'translateX(' + (dir > 0 ? -W() : W()) + 'px)';
+    im.style.transform = 'translateX(' + out + 'px)';
     im.style.opacity = '0';
+
     setTimeout(function () {
       _idx = n;
-      load(n);
       im.style.transition = 'none';
+
+      if (nextUrl) {
+        /* 반대편 화면 밖에 세워 두고 들어오게 한다 */
+        im.src = nextUrl;
+        paint();
+        warmNeighbors();
+        var slideIn = function () {
+          im.style.transition = 'none';
+          im.style.transform = 'translateX(' + (-out) + 'px)';
+          im.style.opacity = '1';
+          /* ☠️ 이 한 줄을 빼면 안 된다 — 시작 위치가 스타일 계산에 반영되기 전에
+             목표값을 덮어써 버려서, 새 사진이 나간 쪽에서 되돌아오는 것처럼 보인다.
+             requestAnimationFrame 으로는 못 막는다 (rAF 는 스타일 계산 앞에서 돈다). */
+          void im.offsetWidth;
+          im.style.transition = 'transform .2s ease-out';
+          im.style.transform = 'translateX(0)';
+          setTimeout(unlock, 210);
+        };
+        /* 준비된 사진이라 decode 는 사실상 즉시 끝난다. 그래도 첫 프레임이 비는 걸 막는다 */
+        if (im.decode) im.decode().then(slideIn, slideIn); else slideIn();
+        return;
+      }
+
+      load(n);
       im.style.transform = 'translateX(0)';
       im.style.opacity = '0';
       requestAnimationFrame(function () {
         im.style.transition = 'opacity .2s ease-out';
         im.style.opacity = '1';
-        setTimeout(function () { _anim = false; im.style.transition = ''; }, 210);
+        setTimeout(unlock, 210);
       });
     }, 160);
   }
@@ -261,6 +332,7 @@
     if (!list.length) return;
     _ids = list;
     _idx = Math.max(0, list.indexOf(startId));
+    _warm = {};
     _onEdit = (opts && opts.onEdit) || null;
     build();
     _el.querySelector('.pvf-edit').style.display = _onEdit ? '' : 'none';
@@ -280,6 +352,7 @@
     resetZoom();
     var im = img();
     if (im) im.removeAttribute('src');
+    _warm = {};
     if (_unreg) { try { _unreg(); } catch (e) {} _unreg = null; }
     if (window.syncBodyLock) syncBodyLock();
   };
