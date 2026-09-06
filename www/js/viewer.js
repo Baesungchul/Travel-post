@@ -96,7 +96,10 @@
   function paint() {
     if (!_el) return;
     var many = _ids.length > 1;
-    _el.querySelector('.pvf-cnt').textContent = many ? (_idx + 1) + ' / ' + _ids.length : '';
+    /* 장수·화살표를 켜고 끄는 방식까지 현장매니저와 같게 — 한 장뿐이면 셋 다 안 보인다 */
+    var cnt = _el.querySelector('.pvf-cnt');
+    if (many) { cnt.style.display = 'block'; cnt.textContent = (_idx + 1) + ' / ' + _ids.length; }
+    else { cnt.style.display = 'none'; }
     _el.querySelector('.pvf-nav.prev').style.display = (many && _idx > 0) ? 'flex' : 'none';
     _el.querySelector('.pvf-nav.next').style.display = (many && _idx < _ids.length - 1) ? 'flex' : 'none';
 

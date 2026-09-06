@@ -118,6 +118,8 @@ const gates = [
   ['ai.js',       'RETRY_MAX', '일시적 실패 재시도'],
   ['undo.js',     'Store.photoGet', '되돌리기가 지우기 **전에** 사진 Blob 을 떠 둠'],
   ['viewer.js',   'Photos.url', '뷰어가 URL 캐시를 거침 (직접 createObjectURL 하면 샌다)'],
+  ['../styles.css', 'rgba(0,0,0,.94)', '사진 뷰어 배경 농도가 현장매니저와 같음'],
+  ['../styles.css', 'max-width:95vw; max-height:92vh', '사진 뷰어 사진 여백이 현장매니저와 같음'],
   ['ui_posts.js', 'deriveTitle', '완성글 제목 폴백 (제목을 안 정한 옛 글도 목록에 보여야 한다)'],
   ['ai.js',       'TITLE_MODEL', '제목 짓기는 값싼 모델로 (본문과 같은 모델을 쓸 이유가 없다)'],
   ['ui_posts.js', '순위를 보장하지는', '제목 후보에 "검색 순위는 보장 못 한다" 고지 (AI 가 정답을 준 것처럼 보이면 안 된다)']

@@ -454,32 +454,45 @@ body.cal-lock{ overflow:hidden; }
    ⚠️ z-index 는 시트(.sheet-ov)보다 위여야 한다 — 기록 상세 시트 안에서 사진을 누르면
       그 시트 위로 떠야 하기 때문이다. 토스트(3000)보다는 아래에 둔다(되돌리기·안내는 보여야 함).
    ⚠️ 배경을 눌러도 안 닫는다(viewer.js 주석 ④) — 그래서 배경에 클릭 핸들러가 없다. */
+/* ☠️ 이 껍데기는 현장매니저 www/styles.css 의 .img-modal 계열과 **같은 값**이다
+   (사장님 지시 2026-09-06: "사진 좌우 스크롤을 현장매니저와 동일하게").
+   배경 농도·사진 여백·버튼 크기와 자리·장수 표시 위치까지 그쪽을 그대로 옮겼다.
+   숫자를 바꾸려면 현장매니저 쪽과 같이 바꿀 것 — 한쪽만 바꾸면 두 앱이 또 달라진다. */
 .pv-full{ position:fixed; inset:0; z-index:2600; display:none;
-          align-items:center; justify-content:center; background:#000;
-          overscroll-behavior:contain; touch-action:none; user-select:none; }
-.pv-full .pvf-img{ max-width:100%; max-height:100%; object-fit:contain;
+          align-items:center; justify-content:center; background:rgba(0,0,0,.94);
+          overflow:hidden; overscroll-behavior:contain; touch-action:none; user-select:none; }
+/* 사진을 화면에 꽉 채우지 않는다 — 가장자리에 여백이 있어야 '사진 위'와 '바깥'이 구분된다 */
+.pv-full .pvf-img{ max-width:95vw; max-height:92vh; border-radius:8px; object-fit:contain;
                    will-change:transform,opacity; -webkit-user-drag:none; }
-.pv-full .pvf-x{ position:absolute; top:calc(12px + var(--sa-top)); right:12px; z-index:3;
-                 width:42px; height:42px; border:0; border-radius:50%; cursor:pointer;
-                 background:rgba(0,0,0,.55); color:#fff; font-size:20px; line-height:1;
-                 display:flex; align-items:center; justify-content:center; }
-.pv-full .pvf-cnt{ position:absolute; top:calc(20px + var(--sa-top)); left:0; right:0; z-index:2;
-                   text-align:center; color:#fff; font-size:13px; font-weight:700;
-                   text-shadow:0 1px 4px rgba(0,0,0,.7); pointer-events:none; }
-.pv-full .pvf-nav{ position:absolute; top:50%; transform:translateY(-50%); z-index:3;
-                   width:44px; height:64px; border:0; border-radius:10px; cursor:pointer;
-                   background:rgba(0,0,0,.4); color:#fff; font-size:30px; line-height:1;
-                   align-items:center; justify-content:center; }
-.pv-full .pvf-nav.prev{ left:6px; }
-.pv-full .pvf-nav.next{ right:6px; }
+/* 닫기는 **밝은 원**이다. 어두운 반투명 버튼은 어두운 사진 위에서 안 보인다 */
+.pv-full .pvf-x{ position:absolute; top:calc(14px + var(--sa-top)); right:14px; z-index:10;
+                 width:34px; height:34px; border:1px solid var(--bd); border-radius:50%; cursor:pointer;
+                 background:var(--sf); color:var(--tx); font-size:16px; line-height:1;
+                 display:flex; align-items:center; justify-content:center; padding:0; }
+.pv-full .pvf-nav{ position:absolute; top:50%; transform:translateY(-50%); z-index:11;
+                   width:44px; height:66px; border:0; border-radius:8px; cursor:pointer;
+                   background:rgba(0,0,0,.35); color:#fff; font-size:34px; line-height:1;
+                   align-items:center; justify-content:center; padding:0;
+                   user-select:none; -webkit-user-select:none; }
+.pv-full .pvf-nav.prev{ left:10px; }
+.pv-full .pvf-nav.next{ right:10px; }
+/* 장수는 **아래 가운데 알약**이다 (현장매니저와 같은 자리) */
+.pv-full .pvf-cnt{ position:absolute; left:50%; transform:translateX(-50%); z-index:11;
+                   bottom:calc(16px + var(--sa-bottom));
+                   background:rgba(0,0,0,.5); color:#fff; padding:4px 12px; border-radius:14px;
+                   font-size:13px; font-weight:700; display:none; }
+/* ── 아래 둘은 찍고쓰다에만 있다 (현장매니저엔 없음) ──
+   태그·메모는 이 앱에서 글의 재료라 사진과 같이 보여야 하고,
+   「지금」 탭은 사진을 누르면 뷰어가 열리므로 편집으로 들어갈 문이 여기 필요하다.
+   ⚠️ 장수 알약(아래 가운데)과 겹치지 않게 자리를 비켜 뒀다. */
 .pv-full .pvf-cap{ position:absolute; left:12px; right:12px; z-index:2;
-                   bottom:calc(64px + var(--sa-bottom)); color:#fff; font-size:13px; font-weight:600;
-                   text-align:center; line-height:1.5; text-shadow:0 1px 4px rgba(0,0,0,.8);
+                   bottom:calc(52px + var(--sa-bottom)); color:#fff; font-size:13px; font-weight:600;
+                   text-align:center; line-height:1.5; text-shadow:0 1px 4px rgba(0,0,0,.85);
                    pointer-events:none; }
-.pv-full .pvf-edit{ position:absolute; left:50%; transform:translateX(-50%); z-index:3;
-                    bottom:calc(16px + var(--sa-bottom)); border:0; border-radius:999px; cursor:pointer;
-                    background:rgba(255,255,255,.92); color:#141A16;
-                    font-size:13px; font-weight:700; padding:10px 18px; }
+.pv-full .pvf-edit{ position:absolute; left:14px; top:calc(14px + var(--sa-top)); z-index:10;
+                    border:1px solid var(--bd); border-radius:999px; cursor:pointer;
+                    background:var(--sf); color:var(--tx);
+                    font-size:12.5px; font-weight:700; padding:8px 14px; }
 
 /* ═══ 삭제 되돌리기 막대 (undo.js) ═══
    토스트와 같은 자리(탭바 위)에 뜨지만, 이건 **눌러야 하는** 것이라 pointer-events 를 살린다. */
