@@ -340,6 +340,8 @@
     var im = img();
     if (im) { im.style.transition = ''; im.style.opacity = '1'; im.style.transform = ''; }
     _el.style.display = 'flex';
+    /* 사진을 크게 보는 동안에는 상단 배너를 내린다 — 웹뷰 위에 떠서 사진을 가린다 */
+    if (window.UI && UI.pauseAds) UI.pauseAds(true);
     load(_idx);
     /* 안드로이드 뒤로가기로 닫히게 — state.js 의 팝업 스택에 올린다 */
     if (window.registerSheet) _unreg = registerSheet({ close: V.close });
@@ -353,6 +355,7 @@
     var im = img();
     if (im) im.removeAttribute('src');
     _warm = {};
+    if (window.UI && UI.pauseAds) UI.pauseAds(false);
     if (_unreg) { try { _unreg(); } catch (e) {} _unreg = null; }
     if (window.syncBodyLock) syncBodyLock();
   };

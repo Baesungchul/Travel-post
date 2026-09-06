@@ -129,7 +129,9 @@
     var ov = document.createElement('div');
     ov.className = 'ov-lock sheet-ov';
     ov.innerHTML =
-      '<div class="sheet">' +
+      /* has-ft — 버튼줄이 있으면 그쪽이 아래 시스템 버튼 여백을 받는다.
+         없으면 본문이 직접 받는다 (styles.css 의 .sheet-bd 주석 참고). */
+      '<div class="sheet' + (opts.foot ? ' has-ft' : '') + '">' +
         '<div class="sheet-hd">' +
           '<div class="sheet-ti">' + (opts.title || '') + '</div>' +
           '<button type="button" class="sheet-x" aria-label="닫기">✕</button>' +

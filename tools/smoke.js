@@ -252,7 +252,8 @@ const EXIFB64=makeExifJpegB64();
   await page.click('.tab-item[data-tab="settings"]'); await page.waitForTimeout(600);
   await chk('설정 — 항목 구성 (2026-09-05 재구성: 계정이 맨 위 단독)', async()=>{
     const t=await page.locator('#pnSettings').innerText();
-    ['계정','카테고리 · 글쓰기','백업 · 이용량','화면 · 정보']
+    /* 2026-09-06: '구독 · 광고 제거' 를 계정 바로 밑에 추가 (사용자 요청) */
+    ['계정','구독 · 광고 제거','카테고리 · 글쓰기','백업 · 이용량','화면 · 정보']
       .forEach(k=>must(t.includes(k),k+' 없음'));
     /* 계정이 첫 항목이어야 한다 — 순서가 요구사항이다 */
     const first=await page.locator('#pnSettings .set-group-head').first().innerText();
@@ -263,7 +264,7 @@ const EXIFB64=makeExifJpegB64();
     /* 맨 아래 줄: 로그인/로그아웃 + 앱명·버전 */
     const foot=await page.locator('.set-foot').innerText();
     must(/찍고쓰다 v/.test(foot),'맨 아래에 앱명·버전이 없음: '+foot);
-    return '항목 4종 · 미설정 '+miss.length+'건 · 아래줄 "'+foot.replace(/\n/g,' ')+'"';
+    return '항목 5종 · 미설정 '+miss.length+'건 · 아래줄 "'+foot.replace(/\n/g,' ')+'"';
   });
   await page.screenshot({path:path.join(__dirname,'shot_settings.png')});
   await chk('로그인 — 설정 상태에 맞게 (막다른 길 금지)', async()=>{
@@ -668,6 +669,69 @@ const EXIFB64=makeExifJpegB64();
     must(r.inn>r.W*0.3, '새 사진이 반대편에서 안 들어옴 — 옛날 페이드로 되돌아갔다 (x='+r.inn+')');
     must(Math.abs(r.end)<5, '제자리로 안 돌아옴 (x='+r.end+')');
     return '나감 '+r.out+'px → 들어옴 +'+r.inn+'px → 제자리 '+r.end+'px';
+  });
+  /* ☠️ 2026-09-06 사용자 신고: 「관리자 권한 관리」 입력칸이 시스템 버튼 뒤에 숨어 안 보였다.
+     시트 하나가 아니라 '버튼줄 없는 시트' 전부의 문제였다 — 그래서 두 종류를 같이 재 본다. */
+  await chk('시트 아래 여백 — 버튼줄이 없어도 시스템 버튼에 안 가린다', async()=>{
+    const r=await page.evaluate(async()=>{
+      document.documentElement.style.setProperty('--safe-area-inset-bottom','48px');
+      const pad=ov=>{const b=ov.querySelector('.sheet-bd');
+        return {bd:parseFloat(getComputedStyle(b).paddingBottom),
+                ft:ov.querySelector('.sheet-ft')?parseFloat(getComputedStyle(ov.querySelector('.sheet-ft')).paddingBottom):null};};
+      const a=overlay({title:'버튼줄 없음',body:'<div>x</div>'});
+      const b=overlay({title:'버튼줄 있음',body:'<div>x</div>',foot:'<button class="btn">확인</button>'});
+      const r={none:pad(a),withFt:pad(b)};
+      a.close(); b.close();
+      document.documentElement.style.removeProperty('--safe-area-inset-bottom');
+      return r;
+    });
+    must(r.none.bd>=48, '버튼줄 없는 시트의 아래 여백이 '+r.none.bd+'px — 시스템 버튼(48px)에 가린다');
+    must(r.withFt.ft>=48, '버튼줄의 아래 여백이 '+r.withFt.ft+'px');
+    must(r.withFt.bd<48, '버튼줄이 있는데 본문까지 여백을 먹어 이중이 됐다 ('+r.withFt.bd+'px)');
+    return '버튼줄 없음 '+r.none.bd+'px · 있음 본문'+r.withFt.bd+'px+버튼줄'+r.withFt.ft+'px';
+  });
+  await chk('설정 — 구독 항목이 첫 화면에 있고 광고 제거로 이어진다', async()=>{
+    const r=await page.evaluate(async()=>{
+      UI.switchTab('settings');
+      const names=[...document.querySelectorAll('#pnSettings .set-grp-name, #pnSettings .set-g-name, #pnSettings [class*="name"]')]
+        .map(e=>e.textContent.trim());
+      const txt=document.getElementById('pnSettings').textContent;
+      const hit=txt.indexOf('구독')>=0 && txt.indexOf('광고 제거')>=0;
+      return {hit, names, has:txt.indexOf('구독 · 광고 제거')>=0};
+    });
+    must(r.has, '설정 첫 화면에 「구독 · 광고 제거」 항목이 없다: '+JSON.stringify(r.names).slice(0,200));
+    return '설정 첫 화면에 구독 항목 있음';
+  });
+  await chk('광고 제거 칩 — 광고가 뜰 때만 보이고 누르면 요금제로 간다', async()=>{
+    const r=await page.evaluate(async()=>{
+      const realAvail=Ads.available, realShow=Ads.showBanner, realHide=Ads.hideBanner;
+      let shown=0, tabs=[];
+      Ads.available=()=>true;
+      Ads.showBanner=()=>{shown++;return Promise.resolve();};
+      Ads.hideBanner=()=>Promise.resolve();
+      for(const t of ['records','now','posts','settings']){
+        UI.switchTab(t);
+        tabs.push(t+':'+(document.getElementById('adOff').style.display===''?'칩보임':'칩없음'));
+      }
+      /* 전체화면(사진 크게 보기) 동안에는 배너가 내려가야 한다 — 안 그러면 사진을 덮는다 */
+      let hidden=0; Ads.hideBanner=()=>{hidden++;return Promise.resolve();};
+      Viewer.open(['no-such-photo'],'no-such-photo');
+      const pausedWhileOpen=hidden>0;
+      Viewer.close();
+      Ads.hideBanner=()=>Promise.resolve();
+      document.getElementById('adOff').click();
+      await new Promise(r=>setTimeout(r,200));
+      const opened=[...document.querySelectorAll('.sheet-ti')].map(e=>e.textContent).join('|');
+      document.querySelectorAll('.sheet-ov').forEach(e=>e.remove()); syncBodyLock();
+      Ads.available=realAvail; Ads.showBanner=realShow; Ads.hideBanner=realHide;
+      UI.switchTab('records');
+      return {shown, tabs, opened, pausedWhileOpen};
+    });
+    must(r.shown>=4, '배너가 네 탭에서 다 안 떴다 ('+r.shown+'회): '+JSON.stringify(r.tabs));
+    must(r.tabs.every(t=>t.endsWith('칩보임')), '광고 제거 칩이 안 보이는 탭이 있다: '+JSON.stringify(r.tabs));
+    must(r.pausedWhileOpen, '사진을 크게 볼 때 배너가 안 내려간다 — 배너가 사진을 덮는다');
+    must(/광고 제거/.test(r.opened), '칩을 눌렀는데 요금제 화면이 안 열렸다: '+r.opened);
+    return '네 탭 모두 배너+칩 · 사진 볼 땐 내려감 · 눌러서 "'+r.opened+'" 열림';
   });
   await chk('사진 URL 캐시에 상한이 있다', async()=>{
     const r=await page.evaluate(()=>({max:Photos.CACHE_MAX, now:Photos.cacheSize()}));

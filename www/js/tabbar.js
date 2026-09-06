@@ -37,16 +37,30 @@
     window.scrollTo(0, 0);
   };
 
-  /* ⭐ 2026-09-03: 상시 배너 — 기록 탭에 있을 때만, 구독 안 한 사람에게만 보여준다
+  /* ⭐ 2026-09-03: 상시 배너 — 구독 안 한 사람에게만 보여준다
      (구독자는 광고를 아예 안 본다는 원칙 — subscription.js openPlans 참고).
+     ⭐ 2026-09-06 사용자 요청 — 처음엔 기록 탭에만 띄웠는데 "작성·완성글·설정 탭에도
+        똑같이 보이게" 로 바뀌었다. 그래서 탭 조건을 뺐다: 네 탭이 모두 같다.
+        ☠️ 배너 자리를 비워 두는 건 styles.css 의 --ad-h 다. 설정 탭에는 .hdr 이 없어서
+           #pnSettings 가 그 값을 따로 받는다 — 탭을 늘릴 땐 거기도 같이 볼 것.
      switchTab 뿐 아니라 refresh 에서도 불러서, 탭은 그대로인데 방금 구독이 반영됐을 때도
      (Subs.refresh 가 UI.refresh 를 부른다) 배너가 곧바로 사라지게 한다. */
+  /* 전체화면(카메라·사진 뷰어) 동안에는 배너를 잠시 내린다.
+     ☠️ 이 SDK 의 배너는 웹뷰 **위에** 뜬다 — 안 내리면 카메라 화면 맨 위를 덮는다.
+        예전엔 기록 탭에서만 배너가 떠서 안 겹쳤는데, 모든 탭으로 늘리면서 겹치게 됐다. */
+  var _adPaused = false;
+  UI.pauseAds = function (on) { _adPaused = !!on; syncAdBanner(); };
+
   function syncAdBanner() {
     if (!window.Ads) return;
+    var on = false;
     try {
-      if (_tab === 'records' && !(window.Subs && Subs.isPaid())) Ads.showBanner();
-      else Ads.hideBanner();
+      on = !_adPaused && !(window.Subs && Subs.isPaid());
+      if (on) Ads.showBanner(); else Ads.hideBanner();
     } catch (e) {}
+    /* 광고가 실제로 뜰 때만 헤더에 '광고 제거' 칩을 보여준다 — 구독하면 칩도 같이 사라진다 */
+    var chip = document.getElementById('adOff');
+    if (chip) chip.style.display = (on && Ads.available && Ads.available()) ? '' : 'none';
   }
 
   /* 현재 탭만 다시 그린다 */
@@ -81,6 +95,11 @@
     var chip = document.getElementById('catChip');
     if (chip) chip.addEventListener('click', function () {
       if (UI.openCategoryPicker) UI.openCategoryPicker();
+    });
+    /* 광고 제거 칩 → 구독 화면 (2026-09-06 사용자 요청) */
+    var off = document.getElementById('adOff');
+    if (off) off.addEventListener('click', function () {
+      if (window.Subs && Subs.openPlans) Subs.openPlans('광고 제거', '구독하면 광고가 사라집니다.');
     });
     /* 뒤로가기 — 카메라가 열려 있으면 카메라만 닫는다 */
     window.addEventListener('popstate', function () {

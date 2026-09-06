@@ -243,6 +243,8 @@
     stopStream();
     closeMenu();
     if (overlayEl) { overlayEl.style.display = 'none'; syncBodyLock(); }
+    /* 카메라를 여는 동안 내려 뒀던 상단 배너를 되돌린다 (tabbar.js UI.pauseAds) */
+    if (window.UI && UI.pauseAds) UI.pauseAds(false);
     capturing = false;
     try { if (window.UI && UI.renderNow) UI.renderNow(); } catch (e) {}
   }
@@ -265,6 +267,8 @@
     syncBtns(); applyStageRatio(); renderTags(); renderCount();
     overlayEl.style.display = 'flex';
     syncBodyLock();
+    /* ☠️ 상단 배너는 웹뷰 위에 뜬다 — 안 내리면 카메라 맨 윗줄(닫기·플래시)을 덮는다 */
+    if (window.UI && UI.pauseAds) UI.pauseAds(true);
     startStream();
     ensureGeo();      // 첫 장을 찍기 전에 미리 잡아 둔다 (실내는 느리다)
   };

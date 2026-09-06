@@ -18,7 +18,13 @@
     <div class="logo-tx">찍고쓰다</div>
     <div class="logo-sb"><span id="appTagline"></span> · <span id="appVersion"></span></div>
   </div>
-  <button type="button" class="cat-chip hdr-sp" id="catChip">📍 카테고리</button>
+  <!-- 오른쪽 칩 묶음. ⚠️ hdr-sp(margin-left:auto)는 이 묶음에만 준다 —
+       칩마다 주면 광고 제거 칩이 화면 한가운데로 밀려난다. -->
+  <div class="hdr-sp hdr-acts">
+    <!-- 광고 제거 — 배너가 떠 있을 때만 보인다(tabbar.js syncAdBanner). 누르면 구독 화면. -->
+    <button type="button" class="ad-off" id="adOff" style="display:none;">광고 제거</button>
+    <button type="button" class="cat-chip" id="catChip">📍 카테고리</button>
+  </div>
 </header>
 
 <!-- ═══ 지금 ═══ 진행 중인 장소 한 곳 -->

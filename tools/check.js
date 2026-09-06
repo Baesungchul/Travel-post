@@ -126,7 +126,16 @@ const gates = [
   /* ★ 2026-09-06 추가 — 사진 넘기기 연출. 빠져도 오류가 안 나고 조용히 옛날 페이드로 되돌아간다 */
   ['viewer.js',   'warmNeighbors', '앞뒤 사진 미리 읽기 (없으면 넘길 때 빈 사각형이 따라 들어온다)'],
   ['viewer.js',   'pre.decode', '미리 읽기를 디코딩까지 (URL 만 받아 두면 여전히 늦다)'],
-  ['viewer.js',   'void im.offsetWidth', '슬라이드 인 시작 위치를 스타일에 강제 반영 (빼면 새 사진이 나간 쪽에서 되돌아온다)']
+  ['viewer.js',   'void im.offsetWidth', '슬라이드 인 시작 위치를 스타일에 강제 반영 (빼면 새 사진이 나간 쪽에서 되돌아온다)'],
+  /* ★ 2026-09-06 — 화면이 시스템 버튼 뒤로 숨던 문제 · 광고/구독 자리 */
+  ['../styles.css', 'calc(14px + var(--sa-bottom))', '버튼줄 없는 시트의 아래 여백 (없으면 마지막 줄이 시스템 버튼 뒤에 숨는다)'],
+  ['state.js',    "opts.foot ? ' has-ft'", '버튼줄 유무를 시트 껍데기에 표시 (위 CSS 가 이걸 보고 여백을 정한다)'],
+  ['../styles.css', 'var(--sa-top) + var(--ad-h)', '설정 탭 위 여백에 배너 높이 포함 (.hdr 이 없는 탭이라 여기서 받아야 한다)'],
+  ['ui_settings.js', "flat: '구독'", '설정 첫 화면의 구독 항목 (안쪽에 묻으면 없는 것과 같다)'],
+  ['tabbar.js',   "getElementById('adOff')", '광고 제거 칩 (광고가 뜰 때만 보이고 누르면 구독으로)'],
+  ['tabbar.js',   'UI.pauseAds', '전체화면 동안 배너 내리기 (배너는 웹뷰 위에 떠서 카메라·사진을 덮는다)'],
+  ['camera.js',   'UI.pauseAds(true)', '카메라를 열면 상단 배너를 내린다'],
+  ['viewer.js',   'UI.pauseAds(true)', '사진 크게 보기에서 상단 배너를 내린다']
 ];
 gates.forEach(([f, needle, label]) => {
   const src = read(path.join(JS, f));

@@ -112,6 +112,8 @@
   Subs.loggedIn = function () { return !!(window.Cloud && Cloud.loggedIn()); };
   Subs.isAdmin = function () { return !!load().admin; };
   Subs.planId = function () { return load().plan; };  // 'free' | 't30' | 't100' | 'unl'
+  /* 화면에 그대로 쓰는 요금제 이름 — 설정의 '구독' 항목이 쓴다 (2026-09-06) */
+  Subs.planLabel = function () { var p = planOf(load()); return p ? p.label : '무료'; };
 
   /* 로그인 상태가 바뀔 때마다 서버의 진짜 admin·plan 값을 당겨 온다(캐시 최신화).
      같은 김에 users/{uid}.email 도 맞춰 둔다 — 관리자가 이메일로 사용자를 찾으려면
