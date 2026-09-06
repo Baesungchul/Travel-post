@@ -117,7 +117,8 @@ const gates = [
   ['ai.js',       'stop_reason', '글이 잘렸는지 확인 (안 보면 끊긴 글을 그대로 내보낸다)'],
   ['ai.js',       'RETRY_MAX', '일시적 실패 재시도'],
   ['undo.js',     'Store.photoGet', '되돌리기가 지우기 **전에** 사진 Blob 을 떠 둠'],
-  ['viewer.js',   'Photos.url', '뷰어가 URL 캐시를 거침 (직접 createObjectURL 하면 샌다)']
+  ['viewer.js',   'Photos.url', '뷰어가 URL 캐시를 거침 (직접 createObjectURL 하면 샌다)'],
+  ['ui_posts.js', 'deriveTitle', '완성글 제목 폴백 (제목을 안 정한 옛 글도 목록에 보여야 한다)']
 ];
 gates.forEach(([f, needle, label]) => {
   const src = read(path.join(JS, f));

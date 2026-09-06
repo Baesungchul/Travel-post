@@ -524,6 +524,38 @@ const EXIFB64=makeExifJpegB64();
     must(r.tries4xx===1,'4xx 인데 쓸데없이 다시 시도함('+r.tries4xx+'회)');
     return '502 두 번 → 세 번째 성공 · 잘림 감지 · 4xx 는 재시도 안 함';
   });
+  await chk('완성글 제목 — 따로 고칠 수 있고 본문은 안 건드린다', async()=>{
+    await closeAll();
+    const r=await page.evaluate(async()=>{
+      const wait=ms=>new Promise(r=>setTimeout(r,ms));
+      const p=Place.current()||Place.create(); await Place.save();
+      const body='# 연남동 골목 안 국밥집\n\n국물이 진했어요.';
+      const rec=await ClaudeAI.savePost(p.id,'naver',body,body);
+      await wait(200);
+      /* ① 제목을 안 정했을 때 — 본문 첫 줄에서 만들되 마크다운 기호는 뗀다 */
+      const auto=UI.postTitle(rec);
+      /* ② 제목을 정하면 그 이름이 쓰인다 */
+      rec.title='웨이팅 20분짜리 국밥';
+      await Store.postPut(rec);
+      const named=UI.postTitle(rec);
+      const bodyAfter=(await Store.postGet(rec.id)).text;
+      /* ③ 비우면 다시 본문에서 만들어 쓴다 */
+      rec.title=''; await Store.postPut(rec);
+      const back=UI.postTitle(rec);
+      return {auto, named, bodyAfter, back, body, id:rec.id};
+    });
+    must(r.auto==='연남동 골목 안 국밥집', '자동 제목에서 # 가 안 떨어짐: '+JSON.stringify(r.auto));
+    must(r.named==='웨이팅 20분짜리 국밥', '정한 제목이 안 쓰임: '+r.named);
+    must(r.bodyAfter===r.body, '제목을 고쳤는데 본문이 바뀜 — 블로그에 붙여넣는 글이 달라진다');
+    must(r.back===r.auto, '제목을 비웠는데 본문 첫 줄로 안 돌아감: '+r.back);
+    /* ④ 목록 화면에 제목 칸이 실제로 있나 */
+    await page.click('.tab-item[data-tab="posts"]'); await page.waitForTimeout(500);
+    await page.evaluate((id)=>{ const row=document.querySelector('.postRow[data-id="'+id+'"]'); if(row) row.click(); }, r.id);
+    await page.waitForTimeout(700);
+    must((await page.locator('#poTitle').count())===1, '완성글 창에 제목 칸이 없음');
+    await closeAll();
+    return '자동 "'+r.auto+'" · 지정 "'+r.named+'" · 본문 그대로';
+  });
   await chk('자동 백업 — 기록 한 건마다 폴더가 따로 생긴다', async()=>{
     const r=await page.evaluate(async()=>{
       /* 가짜 파일시스템을 끼워 넣어 '어디에 무슨 이름으로 쓰는지'만 본다.

@@ -38,6 +38,29 @@
   }
   function draftClear(placeId) { try { localStorage.removeItem(draftKey(placeId)); } catch (e) {} }
 
+  /* ── 완성글 제목 (사용자 지적 2026-09-06: "완성글 제목을 수정할 방법이 없네") ──
+     그전에는 목록에 **본문 첫 줄을 그대로 잘라서** 보여 줬다. 그래서
+       · 네이버 글은 첫 줄이 '# 연남동 골목 안 국밥집…' 이라 # 가 그대로 보였고,
+       · 마음에 안 들어도 고치려면 본문 첫 줄을 건드려야 했다 —
+         그러면 블로그에 붙여넣는 글까지 같이 바뀐다.
+     → post.title 을 따로 둔다. 비어 있으면 예전처럼 첫 줄에서 만들어 쓴다
+       (이미 저장된 글도 그대로 보이게 하려면 이 폴백이 있어야 한다).
+     ⚠️ 제목은 목록에서만 쓴다. 복사·공유되는 본문에는 넣지 않는다 —
+        본문은 사용자가 블로그 편집기에 그대로 붙여넣는 것이라 여기서 덧붙이면 안 된다. */
+  function postTitle(o) {
+    var t = String((o && o.title) || '').trim();
+    if (t) return t;
+    return deriveTitle(o && o.text);
+  }
+  function deriveTitle(text) {
+    var ln = String(text || '').split('\n').filter(function (s) { return s.trim(); })[0] || '';
+    return ln.replace(/^#{1,6}\s*/, '')            /* 마크다운 제목 기호 */
+             .replace(/^\s*[-*+]\s+/, '')          /* 목록 기호 */
+             .replace(/\*\*(.+?)\*\*/g, '$1')      /* 굵게 */
+             .trim() || '(빈 글)';
+  }
+  UI.postTitle = postTitle;
+
   /* ── 사진 미리보기 ⇄ 글 고치기 토글 (사용자 요청 2026-09-05) ──
      ☠️ 편집 상자는 '숨기기'만 한다 — 지우면 저장·복사·공유가 읽을 값이 사라진다
         (저장/복사/올리기는 전부 textarea.value 를 읽는다).
@@ -352,11 +375,12 @@
       var qq = _q.trim().toLowerCase();
       var shown = !qq ? posts : posts.filter(function (o) {
         var pl = places[o.placeId] || {};
-        var hay = [o.text, pl.name, pl.area, ClaudeAI.channel(o.ch).label].join(' ').toLowerCase();
+        /* 제목도 찾을 수 있어야 한다 — 이름을 바꿔 놓고 그 이름으로 못 찾으면 바꾼 의미가 없다 */
+        var hay = [o.title, o.text, pl.name, pl.area, ClaudeAI.channel(o.ch).label].join(' ').toLowerCase();
         return hay.indexOf(qq) >= 0;
       });
       var searchHTML =
-        '<div class="srch"><input class="inp" id="poQ" type="search" placeholder="글·장소·채널 검색" value="' +
+        '<div class="srch"><input class="inp" id="poQ" type="search" placeholder="제목·글·장소·채널 검색" value="' +
           esc(_q) + '">' +
         (qq ? '<div class="mini" style="margin-top:6px;">' + shown.length + '건 찾음 (전체 ' + posts.length + ')</div>' : '') +
         '</div>';
@@ -369,7 +393,7 @@
       el.innerHTML = searchHTML + '<div class="card">' + shown.map(function (o) {
         var pl = places[o.placeId] || {};
         var ch = ClaudeAI.channel(o.ch);
-        var head = String(o.text || '').split('\n').filter(Boolean)[0] || '(빈 글)';
+        var head = postTitle(o);
         return '<div class="row postRow" data-id="' + o.id + '">' +
           '<div style="width:32px;text-align:center;">' + ClaudeAI.channelIcon(o.ch, 22) + '</div>' +
           '<div style="min-width:0;"><div class="ti">' + esc(head.slice(0, 30)) + '</div>' +
@@ -407,6 +431,10 @@
       body:
         '<div class="mini">' + esc(placeLabel(place)) + ' · ' +
           new Date(post.createdAt).toLocaleString('ko-KR') + '</div>' +
+        /* 제목 — 목록에서 이 글을 찾을 때 쓰는 이름이다. 본문에는 안 들어간다 */
+        '<label class="lbl">제목 <span class="mini">(완성글 목록에 보이는 이름 · 본문에는 안 들어갑니다)</span></label>' +
+        '<input class="inp" id="poTitle" maxlength="60" value="' + esc(post.title || '') + '"' +
+          ' placeholder="' + esc(deriveTitle(post.text)) + '">' +
         '<div class="pv-row"><button type="button" class="btn ghost sm" id="poPvBtn">🖼 사진으로 보기</button></div>' +
         '<textarea class="post-ta" id="poText">' + esc(post.text) + '</textarea>' +
         '<div class="post-pv" id="poPv" style="display:none;"></div>' +
@@ -419,7 +447,10 @@
       beforeClose: function () {
         try {
           var ta = ov.querySelector('#poText');
-          if (ta && ta.value !== post.text) { commit(); UI.refresh(); }
+          var ti = ov.querySelector('#poTitle');
+          var changed = (ta && ta.value !== post.text) ||
+                        (ti && ti.value.trim() !== String(post.title || ''));
+          if (changed) { commit(); UI.refresh(); }
         } catch (e) {}
       }
     });
@@ -429,6 +460,9 @@
     function commit() {
       post.text = ov.querySelector('#poText').value;
       post.published = ov.querySelector('#poPub').checked;
+      /* 비우면 title 을 지운다 — 그러면 다시 본문 첫 줄에서 만들어 쓴다(placeholder 가 그 값이다) */
+      var ti = ov.querySelector('#poTitle');
+      post.title = ti ? ti.value.trim() : (post.title || '');
       post.updatedAt = Date.now();
       return Store.postPut(post);
     }
