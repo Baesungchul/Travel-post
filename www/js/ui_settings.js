@@ -17,16 +17,16 @@
         그대로 찾아 쓴다. 다만 이제 열린 섹션만 DOM에 있으므로 직접 바인딩하던 곳들도
         전부 q()(있으면만 바인딩)로 통일했다. */
   /* ⭐ 2026-09-05: 설정 맨 위 브랜드 줄의 아이콘.
-     예전엔 📷 이모지였는데, 이모지는 기기·안드로이드 버전마다 모양이 달라서
+     이모지는 기기·안드로이드 버전마다 모양이 달라서
      홈 화면의 진짜 아이콘과 다른 그림이 보였다 — 같은 그림을 직접 그린다.
      ⚠️ www/icon.svg · android 의 mipmap 아이콘과 **같은 도형**이다. 하나만 고치면 어긋난다. */
   var APP_MARK =
     '<svg class="brand-mk" viewBox="0 0 108 108" aria-hidden="true">' +
-      '<path d="M42 28 h24 l5 8 H37 Z" fill="#fff"/>' +
-      '<rect x="18" y="36" width="72" height="46" rx="10" fill="#fff"/>' +
-      '<circle cx="54" cy="59" r="17" fill="#2F6B4F"/>' +
-      '<path d="M0 -22 C1.5 -6 6 -1.5 22 0 C6 1.5 1.5 6 0 22 C-1.5 6 -6 1.5 -22 0 C-6 -1.5 -1.5 -6 0 -22 Z" transform="translate(54,59) scale(.58)" fill="#fff"/>' +
-      '<circle cx="79" cy="45" r="3.5" fill="#9BD7B2"/>' +
+      '<g fill="none" stroke="#fff" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">' +
+        '<path d="M26 41 V26 H41"/><path d="M67 26 H82 V41"/>' +
+        '<path d="M26 67 V82 H41"/><path d="M67 82 H82 V67"/>' +
+      '</g>' +
+      '<path d="M0 -22 C1.5 -6 6 -1.5 22 0 C6 1.5 1.5 6 0 22 C-1.5 6 -6 1.5 -22 0 C-6 -1.5 -1.5 -6 0 -22 Z" transform="translate(54,54) scale(.84)" fill="#fff"/>' +
     '</svg>';
 
   var _accG = null, _accS = null;   // 열려 있는 큰 타이틀/소타이틀 — 재렌더돼도 유지(다시 접히지 않게)

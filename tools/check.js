@@ -144,7 +144,7 @@ ok('백업이 스토어 ' + stores.length + '종을 모두 담음: ' + stores.jo
    www/index.html(헤더), www/js/ui_settings.js(설정 맨 위).
    안드로이드 런처 아이콘(mipmap PNG)은 이 도형으로 뽑은 것이라 여기서 어긋나면
    **홈 화면 아이콘과 앱 안 아이콘이 다른 그림**이 된다 — 오류는 안 나고 조용히 어긋난다. */
-const MARK_BODY = 'M42 28 h24 l5 8 H37 Z';   /* 카메라 윗부분(뷰파인더 돌출) — 모든 판본에 똑같이 들어간다 */
+const MARK_BODY = 'M26 41 V26 H41';   /* 뷰파인더 왼쪽 위 갈고리 — 모든 판본에 똑같이 들어간다 */
 [['icon.svg', WWW], ['icon-maskable.svg', WWW], ['index.html', WWW]].forEach(([f, dir]) => {
   if (read(path.join(dir, f)).indexOf(MARK_BODY) < 0)
     bad(f + ' 의 앱 아이콘 도형이 다른 곳과 다릅니다 (홈 화면 아이콘과 앱 안 그림이 어긋납니다)');

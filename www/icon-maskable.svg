@@ -1,7 +1,8 @@
-<!-- 찍고쓰다 앱 아이콘 — 렌즈 자리가 반짝임인 카메라 (사장님 확정 2026-09-05)
+<!-- 찍고쓰다 앱 아이콘 — 뷰파인더 안의 반짝임 (사장님 확정 2026-09-06)
      ☠️ 이 도형은 android/app/src/main/res/mipmap-* 의 런처 아이콘,
         www/index.html 헤더, www/js/ui_settings.js 의 APP_MARK 와 **같아야 한다.**
         한 곳만 고치면 홈 화면과 앱 안이 서로 다른 아이콘이 된다.
+        손으로 만지지 말고 tools/make-icons.js 를 고쳐서 npm run icons.
         (tools/check.js 가 어긋나면 잡아 준다) -->
-<!-- maskable: 배경이 모서리까지 꽉 차야 하고, 그림은 가운데 66% 안에 있어야 한다 -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108"><defs><linearGradient id="g" x1="0" y1="0" x2=".55" y2="1"><stop offset="0" stop-color="#5FA46F"/><stop offset="1" stop-color="#2F6B4F"/></linearGradient></defs><rect width="108" height="108" fill="url(#g)"/><g transform="translate(54,54) scale(0.66) translate(-54,-55)"><path d="M42 28 h24 l5 8 H37 Z" fill="#fff"/><rect x="18" y="36" width="72" height="46" rx="10" fill="#fff"/><circle cx="54" cy="59" r="17" fill="#2F6B4F"/><path d="M0 -22 C1.5 -6 6 -1.5 22 0 C6 1.5 1.5 6 0 22 C-1.5 6 -6 1.5 -22 0 C-6 -1.5 -1.5 -6 0 -22 Z" transform="translate(54,59) scale(.58)" fill="#fff"/><circle cx="79" cy="45" r="3.5" fill="#9BD7B2"/></g></svg>
+<!-- maskable: 배경이 모서리까지 꽉 차야 하고, 그림은 가운데 안전 원 안에 있어야 한다 -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108"><defs><linearGradient id="g" x1="0" y1="0" x2=".6" y2="1"><stop offset="0" stop-color="#3F8560"/><stop offset="1" stop-color="#1C4D35"/></linearGradient></defs><rect width="108" height="108" fill="url(#g)"/><g transform="translate(54,54) scale(0.82) translate(-54,-54)"><g fill="none" stroke="#fff" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"><path d="M26 41 V26 H41"/><path d="M67 26 H82 V41"/><path d="M26 67 V82 H41"/><path d="M67 82 H82 V67"/></g><path d="M0 -22 C1.5 -6 6 -1.5 22 0 C6 1.5 1.5 6 0 22 C-1.5 6 -6 1.5 -22 0 C-6 -1.5 -1.5 -6 0 -22 Z" transform="translate(54,54) scale(.84)" fill="#fff"/></g></svg>

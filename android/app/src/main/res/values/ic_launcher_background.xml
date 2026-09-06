@@ -2,5 +2,5 @@
 <resources>
     <!-- drawable/ic_launcher_background.xml 을 못 쓰는 곳을 위한 단색 대체값.
          그라데이션의 어두운 쪽(앱 대표색)과 같게 맞춰 둔다. -->
-    <color name="ic_launcher_background">#2F6B4F</color>
+    <color name="ic_launcher_background">#1C4D35</color>
 </resources>
