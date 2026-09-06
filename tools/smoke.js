@@ -524,6 +524,61 @@ const EXIFB64=makeExifJpegB64();
     must(r.tries4xx===1,'4xx 인데 쓸데없이 다시 시도함('+r.tries4xx+'회)');
     return '502 두 번 → 세 번째 성공 · 잘림 감지 · 4xx 는 재시도 안 함';
   });
+  await chk('자동 백업 — 기록 한 건마다 폴더가 따로 생긴다', async()=>{
+    const r=await page.evaluate(async()=>{
+      /* 가짜 파일시스템을 끼워 넣어 '어디에 무슨 이름으로 쓰는지'만 본다.
+         진짜 쓰기는 폰에서만 되므로(브라우저엔 DOCUMENTS 가 없다) 여기서 검증할 수 있는 건
+         경로 규칙뿐이다 — 그런데 사고가 났던 곳이 바로 그 경로 규칙이었다. */
+      const wrote=[], dirs=[];
+      const fakeFS={
+        mkdir: async(o)=>{ dirs.push(o.path); },
+        readdir: async()=>({files:[]}),
+        writeFile: async(o)=>{ wrote.push(o.path); },
+        readFile: async()=>{ throw new Error('없음'); },
+        rename: async()=>{ throw new Error('없음'); },
+        stat: async()=>{ throw new Error('없음'); }
+      };
+      const CapP=window.Capacitor&&window.Capacitor.Plugins;
+      const realFS=CapP&&CapP.Filesystem, realNative=window.Capacitor&&window.Capacitor.isNativePlatform;
+      if(!CapP) window.Capacitor={Plugins:{}};
+      window.Capacitor.Plugins.Filesystem=fakeFS;
+      window.Capacitor.isNativePlatform=()=>true;
+      const realB64=window.NativeFS.blobToBase64;
+      window.NativeFS.blobToBase64=async()=>'AAAA';
+
+      /* 기록 두 건 — 사진이 섞이면 안 된다 */
+      const mk=(name,tag)=>{const c=document.createElement('canvas');c.width=c.height=8;
+        const x=c.getContext('2d');x.fillStyle=tag;x.fillRect(0,0,8,8);return c.toDataURL('image/jpeg');};
+      const made=[];
+      for(const [nm,color] of [['가게하나','#111'],['가게둘','#222']]){
+        const p=Place.create(); p.name=nm; p.visitedAt='2026-09-06T10:00';
+        await Place.save();
+        await Photos.addFromDataUrl(mk(nm,color), Place.tags(p)[0]);
+        await Place.save();
+        made.push({id:p.id,name:nm});
+      }
+      let err='';
+      try { await AutoBackup.run('smoke'); } catch(e){ err=e.message||String(e); }
+
+      window.Capacitor.Plugins.Filesystem=realFS;
+      if(realNative) window.Capacitor.isNativePlatform=realNative;
+      window.NativeFS.blobToBase64=realB64;
+      return {wrote, dirs, err, made};
+    });
+    must(!r.err, '백업이 오류로 멈춤: '+r.err);
+    const photoPaths=r.wrote.filter(p=>/\.jpg$/i.test(p));
+    must(photoPaths.length>=2, '사진이 안 써짐: '+JSON.stringify(r.wrote));
+    /* ☠️ 예전 구조: photos/ph_xxxx.jpg — 기록이 몇 건이든 한 폴더에 섞였다 */
+    photoPaths.forEach(p=>{
+      const rel=p.replace('jjikgo-backups/auto/photos/','');
+      must(rel.indexOf('/')>0, '기록 폴더 없이 한 곳에 씀: '+p);
+      must(/^\d{4}-\d{2}-\d{2}_/.test(rel), '폴더 이름이 날짜로 시작하지 않음: '+rel);
+      must(/\/\d{2}_.+_ph_[a-z0-9]+\.jpg$/i.test(rel), '파일명이 순번_태그_사진id 가 아님: '+rel);
+    });
+    const folders=[...new Set(photoPaths.map(p=>p.split('/')[3]))];
+    must(folders.length>=2, '기록 두 건인데 폴더가 '+folders.length+'개: '+JSON.stringify(folders));
+    return '기록 '+folders.length+'건 → 폴더 '+folders.length+'개 · 예: '+folders[0];
+  });
   await chk('사진 URL 캐시에 상한이 있다', async()=>{
     const r=await page.evaluate(()=>({max:Photos.CACHE_MAX, now:Photos.cacheSize()}));
     must(typeof r.max==='number'&&r.max>0,'상한이 없음 — 사진 Blob 이 계속 쌓인다');
