@@ -556,6 +556,37 @@ const EXIFB64=makeExifJpegB64();
     await closeAll();
     return '자동 "'+r.auto+'" · 지정 "'+r.named+'" · 본문 그대로';
   });
+  await chk('제목 후보 — AI 가 셋을 주고 고르게 한다 · 횟수는 안 깎는다', async()=>{
+    await closeAll();
+    const r=await page.evaluate(async()=>{
+      const realFetch=window.fetch, realAuth=CFG.PROXY_AUTH;
+      CFG.PROXY_AUTH=false;
+      let body=null, model='';
+      window.fetch=async(u,o)=>{ body=JSON.parse(o.body); model=body.model;
+        return new Response(JSON.stringify({content:[{type:'text',
+          text:'1. "연남동 국밥 맛집 웨이팅 후기"\n2. 연남 골목국밥 국물 진한 곳\n- 연남동 국밥 맛집 웨이팅 후기\n3. 연남동 점심 국밥 내돈내산'}],
+          stop_reason:'end_turn'}),{status:200}); };
+      const before=Subs.left?Subs.left('post'):null;
+      let list=[], err='';
+      try{ list=await ClaudeAI.generateTitles('naver', Place.current()||Place.create(), '국물이 진했어요. 웨이팅 20분.'); }
+      catch(e){ err=e.message||String(e); }
+      window.fetch=realFetch; CFG.PROXY_AUTH=realAuth;
+      const after=Subs.left?Subs.left('post'):null;
+      return {list, err, model, sys:(body&&body.system)||'', before, after};
+    });
+    must(!r.err, '제목 생성 실패: '+r.err);
+    must(r.list.length===3, '후보가 3개가 아님: '+JSON.stringify(r.list));
+    /* 모델이 번호·따옴표를 붙여도 벗겨내야 한다 */
+    r.list.forEach(t=>{
+      must(!/^\d+[.)]/.test(t), '번호가 안 벗겨짐: '+t);
+      must(!/^["'\u201c\u2018]/.test(t), '따옴표가 안 벗겨짐: '+t);
+    });
+    must(new Set(r.list).size===3, '같은 제목이 중복으로 들어감: '+JSON.stringify(r.list));
+    must(r.model && r.model.indexOf('haiku')>=0, '제목을 비싼 모델로 돌림: '+r.model);
+    must(/검색/.test(r.sys), '검색을 노린 지침이 안 들어감');
+    if(r.before!=null&&r.after!=null) must(r.before===r.after, '제목 짓기가 글쓰기 횟수를 깎음: '+r.before+'→'+r.after);
+    return '후보 3개 · '+r.model+' · 횟수 안 깎임';
+  });
   await chk('자동 백업 — 기록 한 건마다 폴더가 따로 생긴다', async()=>{
     const r=await page.evaluate(async()=>{
       /* 가짜 파일시스템을 끼워 넣어 '어디에 무슨 이름으로 쓰는지'만 본다.

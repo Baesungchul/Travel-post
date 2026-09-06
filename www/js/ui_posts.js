@@ -435,6 +435,8 @@
         '<label class="lbl">제목 <span class="mini">(완성글 목록에 보이는 이름 · 본문에는 안 들어갑니다)</span></label>' +
         '<input class="inp" id="poTitle" maxlength="60" value="' + esc(post.title || '') + '"' +
           ' placeholder="' + esc(deriveTitle(post.text)) + '">' +
+        (CFG.hasProxy() ?
+          '<div class="pv-row"><button type="button" class="btn ghost sm" id="poTitleAI">🔎 검색 잘 되는 제목 받기</button></div>' : '') +
         '<div class="pv-row"><button type="button" class="btn ghost sm" id="poPvBtn">🖼 사진으로 보기</button></div>' +
         '<textarea class="post-ta" id="poText">' + esc(post.text) + '</textarea>' +
         '<div class="post-pv" id="poPv" style="display:none;"></div>' +
@@ -466,6 +468,45 @@
       post.updatedAt = Date.now();
       return Store.postPut(post);
     }
+    /* ── 검색에 걸리는 제목 받기 (사용자 요청 2026-09-06) ──
+       ⚠️ 하나만 넣어 주지 않고 셋을 보여 주고 고르게 한다. 검색 순위 규칙은 공개돼 있지도,
+          고정돼 있지도 않아서 "이게 정답"이라고 넣어 버리면 안 된다 — 판단은 사장님 몫이다.
+       ⚠️ 글쓰기 횟수를 깎지 않는다(Subs.use 없음). 이미 차감이 끝난 글에 이름만 붙이는 일이다. */
+    var tAI = ov.querySelector('#poTitleAI');
+    if (tAI) tAI.onclick = function () {
+      var body = ov.querySelector('#poText').value;
+      if (!body.trim()) { showToast('글이 비어 있어요', 'err'); return; }
+      showOverlay('검색에 걸릴 제목을 짓는 중...', function () { if (ClaudeAI.cancel) ClaudeAI.cancel(); });
+      ClaudeAI.generateTitles(post.ch, place, body).then(function (list) {
+        hideOverlay();
+        var pick = overlay({
+          title: '🔎 제목 후보',
+          body:
+            '<div class="mini">지역·업종 낱말을 앞에 두고, 사람들이 실제로 검색창에 치는 말로 지었습니다. ' +
+            '눌러서 고르면 제목 칸에 들어갑니다.</div>' +
+            '<div class="box">' + list.map(function (t, i) {
+              return '<div class="row titlePick" data-i="' + i + '"><div style="min-width:0;">' +
+                '<div class="ti">' + esc(t) + '</div>' +
+                '<div class="sb">' + t.length + '자</div></div><div class="rt">›</div></div>';
+            }).join('') + '</div>' +
+            /* ☠️ 이걸 안 적으면 "AI 가 정해줬으니 맞겠지" 가 된다. 검색 규칙은 아무도 보장 못 한다. */
+            '<div class="mini" style="margin-top:10px;">네이버·구글의 검색 순위 규칙은 공개돼 있지 않고 계속 바뀝니다. ' +
+            '위 후보는 <b>널리 통하는 원칙</b>을 따른 것이지 순위를 보장하지는 않습니다.</div>'
+        });
+        pick.querySelectorAll('.titlePick').forEach(function (row) {
+          row.onclick = function () {
+            ov.querySelector('#poTitle').value = list[+row.getAttribute('data-i')];
+            pick.close();
+            showToast('제목을 넣었어요 — 그대로 고쳐도 됩니다', 'ok');
+          };
+        });
+      }).catch(function (e) {
+        hideOverlay();
+        if (e.code === 'CANCELLED') return;
+        showToast(e.message, 'err');
+      });
+    };
+
     ov.querySelector('#poCopy').onclick = function () {
       commit().then(function () {
         showToast(copyText(post.text) ? '복사했어요' : '복사 실패', 'ok');

@@ -493,6 +493,63 @@
   }
   AI.continuePost = continuePost;
 
+  /* ═══ 검색에 걸리는 제목 만들기 (사용자 요청 2026-09-06) ═══
+     "제목을 마구잡이로 만들지 말고 가장 검색에 유리한 제목으로."
+
+     ⚠️ 정직하게: 네이버·구글의 검색 순위 규칙은 공개돼 있지 않고 수시로 바뀐다.
+        "가장 유리한" 제목을 보장할 방법은 없다 — 여기서 하는 건 **널리 통하는 원칙**
+        (지역+업종 키워드를 앞에, 실제로 검색창에 치는 말로, 낚시 안 함)을 따른 후보를
+        만들어 주는 것뿐이다. 고르는 건 사장님이다. 그래서 하나만 주지 않고 셋을 준다.
+
+     ⚠️ 값이 싼 모델(haiku)로 돌린다. 제목은 짧은 작업이라 본문과 같은 모델을 쓸 이유가 없다.
+     ⚠️ 글쓰기 횟수를 깎지 않는다 — 이미 차감이 끝난 글에 이름을 붙이는 일이다.
+        (호출부 ui_posts.js 에 Subs.use 가 없다. 정책을 바꾸려면 거기만 고치면 된다) */
+  var TITLE_MODEL = 'claude-haiku-4-5';
+  async function generateTitles(chId, place, text) {
+    var ch = CHANNELS[chId] || CHANNELS.naver;
+    var p = place || Place.current();
+    var pf = Profiles.forCurrentPlace();
+    var meta = placeMeta(p);
+
+    var sys =
+      '당신은 한국어 블로그 제목을 짓는 사람입니다. 목표는 **검색에 걸리는 제목**입니다.\n' +
+      '지켜야 할 것:\n' +
+      '- 사람들이 실제로 검색창에 치는 말로 쓴다. 예: "연남동 국밥 맛집", "속초 2박3일 코스"\n' +
+      '- 지역명과 업종·메뉴 키워드를 **앞쪽에** 둔다. 뒤로 갈수록 검색 가중치가 낮다\n' +
+      '- 상호명만 쓰지 않는다. 상호를 아는 사람만 찾을 수 있어서 새 방문자가 안 들어온다\n' +
+      '- 25~32자. 너무 길면 검색 결과에서 뒤가 잘린다\n' +
+      '- 과장·낚시·특수문자 남발은 하지 않는다. 저품질로 걸리면 검색에서 아예 빠진다\n' +
+      '- 본문에 없는 내용을 제목에 넣지 않는다\n' +
+      '- 세 개를 서로 **다른 각도**로 짓는다: ①지역+업종 키워드 중심 ②본문의 구체적인 정보 중심 ③후기 성격을 드러내는 것\n' +
+      '출력 형식: 제목만 한 줄에 하나씩, 정확히 3줄. 번호·따옴표·설명을 붙이지 마세요.';
+
+    var ask = '아래 정보와 본문으로 ' + ch.label + ' 글의 제목 후보 3개를 지어줘.\n\n' +
+              '[방문 정보]\n' + meta.text + '\n\n' +
+              '[본문]\n' + String(text || '').slice(0, 2000);
+
+    var out = await callClaude({
+      max_tokens: 400, system: sys, model: TITLE_MODEL,
+      messages: [{ role: 'user', content: ask }]
+    });
+
+    /* 모델이 번호를 붙이거나 따옴표를 씌우는 일이 있다 — 받아서 다듬는다.
+       ⚠️ 형식이 어긋나도 빈손으로 돌려주지 않는다. 사용자에겐 '안 나왔다'가 제일 나쁜 결과다. */
+    var lines = String(out || '').split('\n')
+      .map(function (s) {
+        return s.replace(/^\s*[-*•]\s*/, '')
+                .replace(/^\s*\d+[.)]\s*/, '')
+                .replace(/^["'“”‘’]+|["'“”‘’]+$/g, '')
+                .trim();
+      })
+      .filter(function (s) { return s && s.length >= 6 && s.length <= 80; });
+
+    var seen = {}, uniq = [];
+    lines.forEach(function (s) { if (!seen[s]) { seen[s] = 1; uniq.push(s); } });
+    if (!uniq.length) throw new Error('제목을 받지 못했어요. 잠시 뒤 다시 해주세요.');
+    return uniq.slice(0, 3);
+  }
+  AI.generateTitles = generateTitles;
+
   /* ═══ 여행 글 — 여러 장소를 한 편으로 ═══════════════════
      ☠️ 카테고리 함정이 새 얼굴로 나오는 지점이다(trips.js 주석 참고).
         여행은 맛집 + 관광지 + 카페가 섞인다. 프로필 하나로 토큰을 치환하면
