@@ -780,6 +780,37 @@ const EXIFB64=makeExifJpegB64();
     must(r.afterStop===r.beforeStop, 'stop() 뒤에도 타이머가 돈다: '+r.beforeStop+'% → '+r.afterStop+'%');
     return '문구 4개 · '+r.sec.toFixed(1)+'초(runSec 6) · '+r.after.w+'%에서 대기 · stop 후 멈춤';
   });
+  /* ☠️ 2026-09-07 사용자 신고: "글 생성하고 나서 글 가장 아래쪽이 버튼에 가려서 일부 보이지 않음".
+     시트(스크롤) 안에 스크롤 상자가 또 있어서, 시트를 끝까지 내려도 마지막 줄이 상자 높이에
+     잘린 채 버튼 바로 위에서 끝났다. 실제로 긴 글을 넣고 끝까지 내려서 재 본다. */
+  await chk('긴 글 — 마지막 줄이 버튼 위에서 잘리지 않는다', async()=>{
+    const r=await page.evaluate(async()=>{
+      const wait=ms=>new Promise(r=>setTimeout(r,ms));
+      document.documentElement.style.setProperty('--safe-area-inset-bottom','48px');
+      const LONG=Array.from({length:14},(_,i)=>'문단 '+(i+1)+'. 연남동 골목 안쪽 국밥집에 다녀왔습니다. 웨이팅은 20분쯤이었어요.').join('\n\n')
+                 +'\n\n마지막 줄';
+      const pl=Place.create(); pl.name='스모크 국밥'; pl.visitedAt='2026-09-07T12:00'; await Place.save();
+      UI.openWriter(pl); await wait(400);
+      const ta=document.querySelector('#wText');
+      ta.value=LONG; ta.dispatchEvent(new Event('input'));
+      document.querySelector('#wPvBtn').click();     // 생성 직후 = 사진으로 보기
+      await wait(600);
+      const bd=document.querySelector('.sheet-bd'), ft=document.querySelector('.sheet-ft');
+      const meas=(el)=>{ bd.scrollTop=bd.scrollHeight;
+        return {inner:el.scrollHeight-el.clientHeight, gap:Math.round(ft.getBoundingClientRect().top-el.getBoundingClientRect().bottom)}; };
+      const pv=meas(document.querySelector('#wPv'));
+      document.querySelector('#wPvBtn').click();     // 편집으로
+      await wait(400);
+      const te=meas(document.querySelector('#wText'));
+      document.querySelectorAll('.sheet-ov').forEach(e=>e.remove()); syncBodyLock();
+      document.documentElement.style.removeProperty('--safe-area-inset-bottom');
+      return {pv,te};
+    });
+    must(r.pv.inner===0, '사진 미리보기 안에 스크롤이 또 있다 ('+r.pv.inner+'px) — 마지막 줄이 잘린다');
+    must(r.te.inner===0, '편집 상자 안에 스크롤이 또 있다 ('+r.te.inner+'px) — 마지막 줄이 잘린다');
+    must(r.pv.gap>=0 && r.te.gap>=0, '상자가 버튼줄 아래로 넘어갔다: 미리보기 '+r.pv.gap+'px · 편집 '+r.te.gap+'px');
+    return '상자 안 스크롤 없음 · 버튼줄까지 여유 미리보기 '+r.pv.gap+'px · 편집 '+r.te.gap+'px';
+  });
   await chk('사진 URL 캐시에 상한이 있다', async()=>{
     const r=await page.evaluate(()=>({max:Photos.CACHE_MAX, now:Photos.cacheSize()}));
     must(typeof r.max==='number'&&r.max>0,'상한이 없음 — 사진 Blob 이 계속 쌓인다');

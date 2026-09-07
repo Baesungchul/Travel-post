@@ -141,7 +141,8 @@ const gates = [
   ['state.js',    'startBusyProgress', 'AI 글 생성 진행 표시 (없으면 스피너만 돌아 멈춘 것처럼 보인다)'],
   ['state.js',    'opts.runSec || 32', '진행 속도를 눈금이 아니라 시간(초)으로 정한다'],
   ['ui_posts.js', 'stopBusy()', '글 생성이 끝나면 진행 표시를 멈춘다 (안 멈추면 타이머가 계속 돈다)'],
-  ['ui_posts.js', 'stopTitle()', '제목 짓기가 끝나면 진행 표시를 멈춘다']
+  ['ui_posts.js', 'stopTitle()', '제목 짓기가 끝나면 진행 표시를 멈춘다'],
+  ['ui_posts.js', 'autoGrow', '편집 상자를 글 길이에 맞춰 늘림 (상자 안에 또 스크롤이 생기면 마지막 줄이 잘린다)']
 ];
 gates.forEach(([f, needle, label]) => {
   const src = read(path.join(JS, f));
@@ -204,6 +205,24 @@ else {
   if (read(path.join(JS, 'version.js')).indexOf('APP_TAGLINE') < 0)
     bad('version.js 가 헤더의 한 줄 설명을 채우지 않습니다 (#appTagline 이 빈칸으로 남습니다)');
   ok('한 줄 설명이 config.js 한 곳에서만 나온다: "' + tagline + '"');
+}
+
+/* ⚠️ 2026-09-07 사용자 신고: "글 생성하고 나서 글 가장 아래쪽이 버튼에 가려서 일부 보이지 않음".
+   원인은 시트(스크롤) 안에 스크롤 상자가 또 있던 것 — 시트를 끝까지 내려도 마지막 줄이
+   상자 높이에 잘린 채 버튼 바로 위에서 끝난다. 스크롤은 시트 본문 하나만 한다.
+   여기서 잡지 않으면 나중에 "미리보기가 너무 길다"는 이유로 다시 들어가기 쉽다. */
+{
+  const css = read(path.join(WWW, 'styles.css'));
+  const nested = [];
+  ['.post-pv', '.post-ta'].forEach(sel => {
+    const i = css.indexOf(sel + '{');
+    if (i < 0) { bad('styles.css 에서 ' + sel + ' 를 찾지 못했습니다 (검사기 수정 필요)'); return; }
+    const block = css.slice(i, css.indexOf('}', i));
+    if (/max-height/.test(block)) nested.push(sel + ' 에 max-height');
+    if (/overflow-y\s*:\s*auto|overflow\s*:\s*auto/.test(block)) nested.push(sel + ' 에 overflow auto');
+  });
+  if (nested.length) bad('글 상자 안에 스크롤이 다시 생겼습니다 (' + nested.join(', ') + ') — 마지막 줄이 잘립니다');
+  else ok('글 상자가 시트 스크롤 하나만 쓴다 (마지막 줄이 버튼 위에서 잘리지 않음)');
 }
 
 /* ── ⑥ 자리표시자 ── */

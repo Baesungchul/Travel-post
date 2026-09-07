@@ -65,9 +65,31 @@
      ☠️ 편집 상자는 '숨기기'만 한다 — 지우면 저장·복사·공유가 읽을 값이 사라진다
         (저장/복사/올리기는 전부 textarea.value 를 읽는다).
      복사되는 글은 마커가 그대로 남는다. 바뀌는 건 화면뿐이다. */
+  /* ── 편집 상자를 글 길이에 맞춰 늘린다 ──
+     ☠️ 2026-09-07 사용자 신고: "글 아래쪽이 버튼에 가려서 일부 보이지 않음".
+        원인은 시트 안에 스크롤 상자가 또 있던 것이다. 상자 안쪽 스크롤과 시트 스크롤이
+        따로 놀아서, 시트를 끝까지 내려도 마지막 줄이 상자 높이에 잘린 채 끝난다.
+        스크롤은 시트 본문 하나만 하도록 상자를 내용 높이까지 늘린다(styles.css 참고).
+     ⚠️ 화면에 안 보일 때(display:none) 재면 scrollHeight 가 0 이라 높이가 무너진다 —
+        보이게 만든 **뒤에** 부른다(show 안에서 그렇게 하고 있다). */
+  function autoGrow(ta) {
+    if (!ta) return function () {};
+    var fit = function () {
+      if (!ta.offsetParent && ta.style.display === 'none') return;   // 숨어 있으면 재지 않는다
+      ta.style.height = 'auto';
+      ta.style.height = (ta.scrollHeight + 2) + 'px';
+    };
+    ta.addEventListener('input', fit);
+    fit();
+    ta._fit = fit;        /* 값을 코드로 넣은 뒤에도 부를 수 있게 */
+    return fit;
+  }
+  UI.fitPostBox = function (ta) { if (ta && ta._fit) ta._fit(); };
+
   function bindPreview(ov, taSel, pvSel, btnSel, getPlace) {
     var ta = ov.querySelector(taSel), pv = ov.querySelector(pvSel), btn = ov.querySelector(btnSel);
     if (!ta || !pv || !btn || !window.Preview) return { show: function () {}, on: function () { return false; } };
+    autoGrow(ta);
     var on = false;
     function paint() {
       if (!on) return;
@@ -84,6 +106,7 @@
       ta.style.display = on ? 'none' : '';
       pv.style.display = on ? '' : 'none';
       btn.textContent = on ? '✏️ 글 고치기' : '🖼 사진으로 보기';
+      if (!on && ta._fit) ta._fit();   /* 편집으로 돌아오면 지금 글 길이에 다시 맞춘다 */
       paint();
     }
     btn.onclick = function () { show(!on); };
