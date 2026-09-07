@@ -151,7 +151,14 @@ const gates = [
   ['../index.html', 'id="camPick"', '폰 기본 카메라를 여는 입력 (capture 가 있어야 갤러리가 아니라 카메라가 열린다)'],
   ['camera.js',   'chosen:', '한 번이라도 직접 골랐는지 구분 (없으면 처음 물어볼 시점을 못 잡는다)'],
   ['ui_now.js',   'UI.askCameraMode', '처음 촬영할 때 한 번 물어보기'],
-  ['ui_now.js',   '설정 → 촬영', '물어보는 창에서 "설정에서 바꿀 수 있다"고 알려 준다']
+  ['ui_now.js',   '설정 → 촬영', '물어보는 창에서 "설정에서 바꿀 수 있다"고 알려 준다'],
+  /* ★ 2026-09-07 — 달력 달 넘기기 (사용자: "버벅인다, 프레임이 적은 것 같다")
+       빠져도 오류가 안 난다. 조용히 예전의 '툭 갈아 끼우기'로 돌아갈 뿐이라 눈으로 봐야 안다. */
+  ['../styles.css', '.cal-grid.cal-anim', '달 넘기는 동안만 레이어 승격 (없으면 매 프레임 칸 42개를 다시 그린다)'],
+  ['calendar.js', "grid.classList.add('cal-anim')", '가로 드래그가 확정될 때 승격 (트랜지션 뒤에 붙이면 늦다)'],
+  ['calendar.js', 'void g2.offsetWidth', '들여오기 시작 위치를 스타일에 강제 반영 (빼면 들어오는 연출이 통째로 사라진다)'],
+  ['calendar.js', 'return collect(_y, _m)', 'render 가 프로미스를 돌려준다 (안 그러면 옛 달이 붙은 격자를 밀어 넣는다)'],
+  ['calendar.js', 'move(dir2, true)', '끌다 놓으면 그 자리에서 이어서 나간다 (가운데로 되돌리면 한 번 튕긴다)']
 ];
 gates.forEach(([f, needle, label]) => {
   const src = read(path.join(JS, f));

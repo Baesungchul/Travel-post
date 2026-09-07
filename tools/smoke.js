@@ -893,6 +893,36 @@ const EXIFB64=makeExifJpegB64();
     must(r.inapp==='inapp', '앱 카메라로 골랐는데 다른 게 열린다');
     return '처음 한 번만 물어봄 · 고른 즉시 열림 · 설정대로 갈라짐';
   });
+  /* ☠️ 2026-09-07 사용자 신고 "달력 이동할 때 깨끗하게 이동 안 되고 버벅인다".
+     예전엔 연출이 아예 없어 격자를 툭 갈아 끼웠다. 연출이 빠져도 오류는 안 나므로
+     사진 넘기기와 같은 방식으로 **좌표를 직접 재서** 확인한다.
+     레이어 승격(.cal-anim)도 같이 본다 — 이게 없으면 매 프레임 다시 그려 버벅인다. */
+  await chk('달 넘기기 — 새 달이 반대편에서 밀려 들어온다', async()=>{
+    const r=await page.evaluate(async()=>{
+      const wait=ms=>new Promise(r=>setTimeout(r,ms));
+      const host=document.createElement('div');
+      document.body.appendChild(host);
+      Cal.render(host);
+      await wait(400);                       // 첫 렌더(collect) 가 끝날 때까지
+      const g=()=>host.querySelector('#calGrid');
+      const x=()=>{const e=g(); return e?Math.round(new DOMMatrix(getComputedStyle(e).transform).m41):null;};
+      const title=()=>{const t=host.querySelector('#calTitle'); return t?t.textContent:'';};
+      const before=title();
+      host.querySelector('#calNext').click();
+      await wait(70);  const out=x(), layer=!!(g()&&g().classList.contains('cal-anim'));
+      await wait(140); const inn=x();        // 새 달이 막 들어오기 시작
+      await wait(330); const end=x(), after=title(), stillLayer=!!(g()&&g().classList.contains('cal-anim'));
+      host.remove();
+      return {out,inn,end,layer,stillLayer,before,after,W:window.innerWidth};
+    });
+    must(r.out<-10, '나가는 달이 안 밀림 — 연출 없이 툭 갈아 끼운다 (x='+r.out+')');
+    must(r.layer, '옮기는 동안 레이어 승격(.cal-anim)이 안 붙는다 — 매 프레임 다시 그려 버벅인다');
+    must(r.inn>10, '새 달이 반대편에서 안 들어온다 (x='+r.inn+')');
+    must(Math.abs(r.end)<5, '제자리로 안 돌아옴 (x='+r.end+')');
+    must(!r.stillLayer, '끝나고도 레이어를 물고 있다 — 메모리를 먹고 글자가 뿌옇게 보인다');
+    must(r.before!==r.after, '달이 실제로 안 바뀜 ('+r.before+' → '+r.after+')');
+    return '나감 '+r.out+'px → 들어옴 +'+r.inn+'px → 제자리 '+r.end+'px · '+r.before+'→'+r.after;
+  });
   await chk('사진 URL 캐시에 상한이 있다', async()=>{
     const r=await page.evaluate(()=>({max:Photos.CACHE_MAX, now:Photos.cacheSize()}));
     must(typeof r.max==='number'&&r.max>0,'상한이 없음 — 사진 Blob 이 계속 쌓인다');

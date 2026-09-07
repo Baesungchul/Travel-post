@@ -249,7 +249,9 @@
     if (_y == null) { var t = new Date(); _y = t.getFullYear(); _m = t.getMonth(); }
     if (!_sel) _sel = todayStr();
 
-    collect(_y, _m).then(function (byDate) {
+    /* ★ 2026-09-07 프로미스를 돌려준다 — move() 가 '다 그려진 뒤'에 들여오는 애니메이션을
+         시작해야 한다. 안 그러면 아직 옛 달이 붙어 있는 격자를 밀어 넣게 된다. */
+    return collect(_y, _m).then(function (byDate) {
       var first = new Date(_y, _m, 1).getDay();
       var lastDate = new Date(_y, _m + 1, 0).getDate();
       var today = todayStr();
@@ -487,6 +489,8 @@
       grid.style.transition = 'transform .18s ease-out, opacity .18s ease-out';
       grid.style.transform  = 'none';
       grid.style.opacity    = '1';
+      /* 되돌아가는 동안까지만 레이어를 물고 있다가 놓는다 (2026-09-07) */
+      setTimeout(function () { grid.classList.remove('cal-anim'); }, 200);
     }
     /* 목록 보기는 자기 안에서 스크롤한다 → '바닥에 닿아 있을 때'만 접기로 본다.
        그러지 않으면 마지막 줄을 보려고 위로 미는 동작마다 접혀 버린다.
@@ -512,6 +516,10 @@
       if (mode === 1) {
         if (Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy) * 1.3) {
           mode = 2;
+          /* ★ 2026-09-07 가로로 확정되는 이 순간 레이어 승격을 켠다.
+             ☠️ transform 을 이미 움직이기 시작한 뒤에 붙이면 늦다 — 브라우저가 그 프레임에
+                레이어를 못 만들고 첫 몇 프레임을 그대로 다시 그린다(= 처음이 제일 버벅인다). */
+          grid.classList.add('cal-anim');
         } else if (Math.abs(dy) > 12) {
           if (dy < 0 && _expanded && startedAtBottom) {
             mode = 5;
@@ -565,7 +573,20 @@
         if (!t) { snapBack(); return; }
         var dx = t.clientX - sx;
         var fast = (Date.now() - st) < 300 && Math.abs(dx) > 40;
-        if (Math.abs(dx) > W() * 0.28 || fast) { grid.style.transform = 'none'; grid.style.opacity = '1'; move(dx < 0 ? 1 : -1); }
+        if (Math.abs(dx) > W() * 0.28 || fast) {
+          /* ★ 2026-09-07 예전에는 여기서 격자를 가운데로 **되돌린 다음** 갈아 끼웠다.
+               손가락은 왼쪽으로 갔는데 화면이 오른쪽으로 튕겼다가 바뀌니 따로 놀았다.
+               이제 손이 놓아 준 자리에서 그대로 이어서 밀려 나간다.
+             ☠️ 이미 32% 보다 멀리 끌었을 수 있다 — 그때 32% 로 보내면 뒤로 물러난다.
+                둘 중 먼 쪽을 쓴다. */
+          var dir2 = dx < 0 ? 1 : -1;
+          var far  = Math.max(Math.abs(dx), W() * (DIST / 100));
+          grid.classList.add('cal-anim');
+          grid.style.transition = 'transform 110ms cubic-bezier(.4,0,1,1), opacity 110ms linear';
+          grid.style.transform  = 'translateX(' + (dir2 > 0 ? -far : far) + 'px)';
+          grid.style.opacity    = '0';
+          setTimeout(function () { move(dir2, true); }, 110);
+        }
         else snapBack();
         return;
       }
@@ -609,11 +630,59 @@
   Cal.collapse = function () { if (_expanded) _setExpanded(false); };
   Cal.unlock   = function () { document.body.classList.remove('cal-lock'); };
 
-  function move(dir) {
+  /* ── 달 넘기기 ────────────────────────────────────────────────────────────
+     ★ 2026-09-07 사용자 신고(현장매니저와 같은 건): "달력 이동할 때 깨끗하게 이동
+        안 되고 버벅인다. 프레임이 적다고 할까?"
+
+     여기는 현장매니저보다 더 나빴다 — **애니메이션 자체가 없었다.** 손가락을 떼면
+     격자를 가운데로 되돌린 다음 Cal.render() 로 통째로 갈아 끼워서, 끌던 동작과
+     바뀌는 순간이 따로 놀았다. 게다가 render 는 비동기(collect)라 갈아 끼우는
+     시점이 프레임마다 달랐다.
+
+     현장매니저 _navMonth 와 같은 구조로 맞춘다:
+       ① 옮기는 동안만 레이어로 승격(.cal-anim) — 매 프레임 다시 그리지 않게
+       ② 나가고 → 다 그려진 뒤 → 반대편에서 들어오기
+       ③ 거리는 32%, 130ms + 190ms. 갈 길이 짧을수록 프레임이 빠져도 티가 덜 난다
+     ☠️ skipOut 은 손가락으로 끌다 놓은 경우다. 그때는 이미 손이 밀어 놓은 자리에서
+        이어서 나가므로 나가는 단계를 여기서 또 하면 한 번 튕긴 것처럼 보인다. */
+  var IN_MS = 190, OUT_MS = 130, DIST = 32;
+  function move(dir, skipOut) {
     _m += dir;
     if (_m < 0) { _m = 11; _y--; }
     if (_m > 11) { _m = 0; _y++; }
-    Cal.render();
+
+    var g = _host && _host.querySelector('#calGrid');
+    if (!g) { Cal.render(); return; }
+
+    var slideIn = function () {
+      var g2 = _host && _host.querySelector('#calGrid');
+      if (!g2) return;
+      g2.classList.add('cal-anim');
+      g2.style.transition = 'none';
+      g2.style.transform  = 'translateX(' + (dir > 0 ? DIST : -DIST) + '%)';
+      g2.style.opacity    = '0';
+      /* ☠️ 이 한 줄을 빼면 안 된다 — 시작 위치가 스타일 계산에 반영되기 전에 목표값을
+           덮어써서, 들어오는 애니메이션이 통째로 사라지거나 반대쪽에서 오는 것처럼 보인다.
+           requestAnimationFrame 으로는 못 막는다(rAF 는 스타일 계산 앞에서 돈다).
+           viewer.js 사진 넘김에서 똑같은 함정을 밟은 적이 있다. */
+      void g2.offsetWidth;
+      g2.style.transition = 'transform ' + IN_MS + 'ms cubic-bezier(0,0,.2,1), opacity ' + IN_MS + 'ms linear';
+      g2.style.transform  = 'none';
+      g2.style.opacity    = '1';
+      setTimeout(function () { g2.classList.remove('cal-anim'); }, IN_MS + 120);
+    };
+    var renderThenIn = function () {
+      var r = Cal.render();
+      if (r && r.then) r.then(slideIn, slideIn); else slideIn();
+    };
+
+    if (skipOut) { renderThenIn(); return; }
+
+    g.classList.add('cal-anim');   // ★ 트랜지션을 걸기 '전에' 붙여야 레이어가 생긴다
+    g.style.transition = 'transform ' + OUT_MS + 'ms cubic-bezier(.4,0,1,1), opacity ' + OUT_MS + 'ms linear';
+    g.style.transform  = 'translateX(' + (dir > 0 ? -DIST : DIST) + '%)';
+    g.style.opacity    = '0';
+    setTimeout(renderThenIn, OUT_MS);
   }
 
   function openMonthPicker() {
