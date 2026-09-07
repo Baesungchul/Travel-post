@@ -232,8 +232,11 @@
         var ta3 = ov.querySelector('#wText');
         var partial = ta3.value;
         if (!partial.trim()) { showCut(false); return; }
-        showOverlay('끊긴 자리부터 이어서 쓰는 중...', function () { if (ClaudeAI.cancel) ClaudeAI.cancel(); });
+        showOverlay('이어서 쓰는 중...', function () { if (ClaudeAI.cancel) ClaudeAI.cancel(); });
+        var stopCont = startBusyProgress(
+          ['끊긴 자리 찾는 중...', '이어질 내용 쓰는 중...', '거의 다 됐어요...'], { runSec: 24 });
         ClaudeAI.continuePost(chId, partial).then(function (more) {
+          stopCont();
           hideOverlay();
           var tail = String(more || '').trim();
           if (!tail) { showToast('이어질 내용을 받지 못했어요', 'err'); return; }
@@ -245,6 +248,7 @@
           try { if (wPv.on()) wPv.show(true); } catch (e) {}
           showToast('이어서 썼어요', 'ok');
         }).catch(function (e) {
+          stopCont();
           hideOverlay();
           if (e.code === 'CANCELLED') return;
           showToast(e.message, 'err');
@@ -258,13 +262,19 @@
       if (!CFG.hasProxy()) { fillDraft(); showToast('프록시 미설정 — 뼈대 초안을 넣었어요'); return; }
       /* ⚠️ 게이트는 **호출 직전**에 본다. 비용이 나가는 지점이 여기다. */
       if (!Subs.gateFeature('post', 'AI 글 생성')) return;
-      showOverlay(trip ? '여행기 쓰는 중... (장소 ' + tripPlaces.length + '곳)' : '글 쓰는 중... (사진을 보고 있어요)',
+      showOverlay(trip ? '여행기 쓰는 중...' : '글 쓰는 중...',
         /* 전파가 약한 곳에서 갇히지 않게 — 취소해도 횟수는 안 깎인다(차감은 성공 뒤) */
         function () { if (ClaudeAI.cancel) ClaudeAI.cancel(); });
+      /* ★ 2026-09-07 사용자 요청 — 현장매니저처럼 진행 문구를 보여준다(state.js startBusyProgress).
+         스피너만 도는 화면은 멈춘 것처럼 보인다. 문구는 상한(92%)에서 멈추고 실제 완료를 기다린다. */
+      var stopBusy = startBusyProgress(trip
+        ? ['장소별 사진 살펴보는 중...', '동선 따라 이야기 엮는 중...', '문장 다듬는 중...', '거의 다 됐어요...']
+        : ['사진과 메모 살펴보는 중...', ClaudeAI.channel(chId).label + ' 말투로 구성하는 중...', '문장 다듬는 중...', '거의 다 됐어요...']);
       var hint = ov.querySelector('#wHint').value.trim();
       var run = trip ? ClaudeAI.generateTripPost(chId, trip, tripPlaces, hint)
                      : ClaudeAI.generatePost(chId, hint, p);
       run.then(function (t) {
+        stopBusy();
         hideOverlay();
         /* ☠️ 차감은 **성공한 뒤에** 한다. 오류로 실패한 호출까지 세면 사용자가 손해다. */
         Subs.use('post');
@@ -280,6 +290,7 @@
         showToast(cut ? '글이 중간에서 끊겼어요 — 아래 「이어서 쓰기」를 눌러 주세요'
                       : '썼어요. 고쳐서 저장하면 다음 글이 이 말투를 따라갑니다', cut ? '' : 'ok');
       }).catch(function (e) {
+        stopBusy();
         hideOverlay();
         if (e.code === 'CANCELLED') return;              /* 사용자가 스스로 멈춘 것 — 오류가 아니다 */
         if (e.code === 'NO_PROXY' || e.code === 'NO_AUTH') {
@@ -476,8 +487,12 @@
     if (tAI) tAI.onclick = function () {
       var body = ov.querySelector('#poText').value;
       if (!body.trim()) { showToast('글이 비어 있어요', 'err'); return; }
-      showOverlay('검색에 걸릴 제목을 짓는 중...', function () { if (ClaudeAI.cancel) ClaudeAI.cancel(); });
+      showOverlay('제목 짓는 중...', function () { if (ClaudeAI.cancel) ClaudeAI.cancel(); });
+      /* 제목은 본문보다 훨씬 짧게 걸린다 — 진행도 그만큼 빠르게 (state.js startBusyProgress) */
+      var stopTitle = startBusyProgress(
+        ['사진과 글 살펴보는 중...', '검색에 걸릴 말 고르는 중...', '거의 다 됐어요...'], { runSec: 16 });
       ClaudeAI.generateTitles(post.ch, place, body).then(function (list) {
+        stopTitle();
         hideOverlay();
         var pick = overlay({
           title: '🔎 제목 후보',
@@ -501,6 +516,7 @@
           };
         });
       }).catch(function (e) {
+        stopTitle();
         hideOverlay();
         if (e.code === 'CANCELLED') return;
         showToast(e.message, 'err');

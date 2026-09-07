@@ -59,9 +59,51 @@
     if (_ovEl) _ovEl.style.display = 'none';
     lock();
   }
+
+  /* ── 가짜 진행바 (AI 글 생성처럼 '얼마나 남았는지' 알 수 없는 일) ──
+     ★ 2026-09-07 사용자 요청으로 현장매니저에서 옮겨 왔다.
+       스피너만 도는 화면은 멈춘 것처럼 보인다. 진행바를 조금씩 채우면서
+       그 구간에 맞는 문구 하나만 보여준다.
+
+     ⚠️ 문구는 앞으로만 나아가고 처음으로 되돌아가 반복하지 않는다.
+        초반 문구가 뒤에서 또 뜨면 가짜 진행바인 게 티가 난다.
+     ☠️ 상한(92%)에서 멈추고 실제 완료를 기다린다. 100%를 먼저 보여주면 안 된다.
+     ☠️ 속도는 '상한까지 걸리는 시간(runSec)'으로 정한다 — 눈금 폭으로 정하면
+        문구 개수에 따라 체감 속도가 제멋대로 달라진다.
+        늦추려고 틱 간격(700ms)을 키우지 말 것: 막대가 뚝뚝 끊겨 보인다.
+     사용법: var stop = startBusyProgress(['문구1','문구2',...]); ... 끝나면 stop(); */
+  function startBusyProgress(messages, opts) {
+    opts = opts || {};
+    var tickMs = opts.interval || 700;
+    var msgs = (messages && messages.length) ? messages : ['처리 중...'];
+    var cap = 92;
+    var seg = cap / msgs.length;          // 문구 하나가 담당하는 진행률 구간
+    var pct = Math.min(4, seg * 0.3);
+    var runSec = opts.runSec || 32;       // 상한까지 걸리는 대략의 시간
+    var ticks = Math.max(1, Math.round(runSec * 1000 / tickMs));
+    var step = (cap - pct) / ticks;       // 한 틱에 올릴 평균 폭
+    function paint() {
+      var idx = Math.min(msgs.length - 1, Math.floor(pct / seg));
+      setProg(Math.round(pct), msgs[idx]);
+    }
+    paint();
+    var timer = setInterval(function () {
+      if (pct >= cap) return;             // 상한 뒤에는 그대로 두고 실제 완료를 기다린다
+      pct = Math.min(pct + step * (0.75 + Math.random() * 0.5), cap);
+      paint();
+    }, tickMs);
+    var stopped = false;
+    return function stopBusyProgress() {
+      if (stopped) return;
+      stopped = true;
+      clearInterval(timer);
+    };
+  }
+
   window.showOverlay = showOverlay;
   window.hideOverlay = hideOverlay;
   window.setProg = setProg;
+  window.startBusyProgress = startBusyProgress;
 
   /* ── body 스크롤 잠금 ──
      .ov-lock 이 하나라도 보이면 잠근다. 동적으로 붙는 오버레이도 감시한다. */

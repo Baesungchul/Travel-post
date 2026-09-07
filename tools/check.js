@@ -136,7 +136,12 @@ const gates = [
   ['tabbar.js',   "getElementById('adOff')", '광고 제거 칩 (광고가 뜰 때만 보이고 누르면 구독으로)'],
   ['tabbar.js',   'UI.pauseAds', '전체화면 동안 배너 내리기 (배너는 웹뷰 위에 떠서 카메라·사진을 덮는다)'],
   ['camera.js',   'UI.pauseAds(true)', '카메라를 열면 상단 배너를 내린다'],
-  ['viewer.js',   'UI.pauseAds(true)', '사진 크게 보기에서 상단 배너를 내린다']
+  ['viewer.js',   'UI.pauseAds(true)', '사진 크게 보기에서 상단 배너를 내린다'],
+  /* ★ 2026-09-07 추가 — AI 글 생성 진행 표시 (현장매니저에서 옮겨 옴) */
+  ['state.js',    'startBusyProgress', 'AI 글 생성 진행 표시 (없으면 스피너만 돌아 멈춘 것처럼 보인다)'],
+  ['state.js',    'opts.runSec || 32', '진행 속도를 눈금이 아니라 시간(초)으로 정한다'],
+  ['ui_posts.js', 'stopBusy()', '글 생성이 끝나면 진행 표시를 멈춘다 (안 멈추면 타이머가 계속 돈다)'],
+  ['ui_posts.js', 'stopTitle()', '제목 짓기가 끝나면 진행 표시를 멈춘다']
 ];
 gates.forEach(([f, needle, label]) => {
   const src = read(path.join(JS, f));

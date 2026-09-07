@@ -742,6 +742,44 @@ const EXIFB64=makeExifJpegB64();
     must(/광고 제거/.test(r.opened), '칩을 눌렀는데 요금제 화면이 안 열렸다: '+r.opened);
     return '네 탭 모두 배너+칩 · 사진 볼 땐 내려감 · 눌러서 "'+r.opened+'" 열림';
   });
+  /* ☠️ 2026-09-07 사용자 요청 — 현장매니저처럼 글 생성 진행 문구를 보여준다.
+     "너무 빨리 지나가고 '거의 다 됐어요'에서 한참 기다린다"는 지적을 받은 자리다.
+     검사는 runSec 을 6초로 줄여 돌린다 — 기본값 32초를 그대로 기다리면 스모크가 그만큼 길어진다.
+     기본값이 32초인지는 check.js 가 따로 본다(둘을 같이 봐야 의미가 있다). */
+  await chk('글 생성 진행 표시 — 문구가 앞으로만 가고 상한에서 멈춘다', async()=>{
+    const r=await page.evaluate(async()=>{
+      const wait=ms=>new Promise(r=>setTimeout(r,ms));
+      const msg=()=>document.querySelector('#busy .busy-msg').textContent;
+      const wid=()=>parseFloat(document.querySelector('#busy .busy-bar i').style.width)||0;
+      showOverlay('글 쓰는 중...');
+      const stop=startBusyProgress(['하나...','둘...','셋...','거의 다 됐어요...'], {runSec:6});
+      const seq=[]; const t0=performance.now();
+      for(let i=0;i<60;i++){
+        await wait(200);
+        if(!seq.length || seq[seq.length-1]!==msg()) seq.push(msg());
+        if(wid()>=92) break;
+      }
+      const sec=(performance.now()-t0)/1000;
+      /* 상한 뒤에는 더 안 올라가고 문구도 그대로여야 한다 */
+      await wait(1600);
+      const after={w:wid(), m:msg()};
+      stop();
+      const beforeStop=wid();
+      await wait(1600);
+      const afterStop=wid();
+      hideOverlay();
+      return {seq, sec, after, beforeStop, afterStop};
+    });
+    must(r.seq.length===4, '문구가 '+r.seq.length+'개만 보임: '+JSON.stringify(r.seq));
+    must(r.seq[0]==='하나...' && r.seq[3]==='거의 다 됐어요...', '문구 순서가 어긋남: '+JSON.stringify(r.seq));
+    must(new Set(r.seq).size===4, '문구가 되돌아가 반복됨 — 가짜 진행바인 게 티가 난다: '+JSON.stringify(r.seq));
+    /* runSec 이 실제로 속도를 정하는가 (6초를 줬으니 그 언저리여야 한다) */
+    must(r.sec>=4 && r.sec<=11, 'runSec 6초를 줬는데 '+r.sec.toFixed(1)+'초 — 속도를 runSec 이 안 정한다');
+    must(r.after.w<=92, '100%를 먼저 보여줌: '+r.after.w+'%');
+    must(r.after.m==='거의 다 됐어요...', '상한 뒤에 문구가 또 바뀜: '+r.after.m);
+    must(r.afterStop===r.beforeStop, 'stop() 뒤에도 타이머가 돈다: '+r.beforeStop+'% → '+r.afterStop+'%');
+    return '문구 4개 · '+r.sec.toFixed(1)+'초(runSec 6) · '+r.after.w+'%에서 대기 · stop 후 멈춤';
+  });
   await chk('사진 URL 캐시에 상한이 있다', async()=>{
     const r=await page.evaluate(()=>({max:Photos.CACHE_MAX, now:Photos.cacheSize()}));
     must(typeof r.max==='number'&&r.max>0,'상한이 없음 — 사진 Blob 이 계속 쌓인다');
