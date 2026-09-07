@@ -156,6 +156,26 @@
           그래서 이 항목만 SEC(펼칠 내용) 없이 GROUPS 의 go() 로 요금제 화면을 바로 연다. */
     var paid = Subs.isPaid();
 
+    /* ★ 2026-09-07 사용자 요청: "앱 내 자체 카메라도 쓰고 설정에서 폰의 기본 카메라로도
+       쓸 수 있게 선택할 수 있게 해줘" — 실제 저장·판단은 camera.js 의 CamMode 가 한다. */
+    var camMode = (window.CamMode ? CamMode.get() : 'inapp');
+    SEC['촬영'] =
+      '<div class="set-row"><div><div class="k">촬영 방식</div>' +
+        '<div class="d">「촬영」을 눌렀을 때 무엇을 열지 정합니다</div></div>' +
+        '<div class="sp"><select class="inp" id="stCam" style="width:auto;">' +
+          '<option value="inapp"' + (camMode === 'inapp' ? ' selected' : '') + '>앱 카메라</option>' +
+          '<option value="system"' + (camMode === 'system' ? ' selected' : '') + '>폰 기본 카메라</option>' +
+        '</select></div></div>' +
+      '<div class="mini"><b>앱 카메라</b>는 찍기 전에 사진 태그를 고르고 비율(4:5 · 1:1 · 3:4 · 4:3)을 ' +
+        '맞춰 줍니다. 여러 장을 이어서 찍기도 편합니다.<br>' +
+        '<b>폰 기본 카메라</b>는 손에 익은 화면과 화질 보정을 그대로 씁니다. 대신 <b>한 번에 한 장</b>씩 ' +
+        '들어오고, 태그는 지금 고른 태그로 붙습니다.</div>' +
+      '<div class="mini" style="margin-top:6px;">어느 쪽이든 사진에는 위치를 심지 않습니다 — ' +
+        '위치는 장소에만 붙어서, 블로그에 올려도 집·동선이 남지 않습니다.</div>' +
+      (window.CamMode && !CamMode.chosen()
+        ? '<div class="mini" style="margin-top:6px;">아직 고르지 않으셨습니다 — 처음 촬영하실 때 한 번 여쭤봅니다.</div>'
+        : '');
+
     SEC['화면'] =
       '<div class="set-row"><div class="k">어두운 모드</div>' +
         '<div class="sp"><select class="inp" id="stMode" style="width:auto;">' +
@@ -195,8 +215,8 @@
         subs: ['카테고리', '채널별 글쓰기 지침', '글 교정 학습'] },
       { key: 'data', icon: '💾', name: '백업 · 이용량', desc: '백업 · 글 생성 이용량',
         subs: ['백업', '이용량'] },
-      { key: 'disp', icon: '🎨', name: '화면 · 정보', desc: '테마 · 글자 크기 · 앱 정보',
-        subs: ['화면', '정보'] }
+      { key: 'disp', icon: '🎨', name: '촬영 · 화면 · 정보', desc: '카메라 · 테마 · 글자 크기 · 앱 정보',
+        subs: ['촬영', '화면', '정보'] }
     ];
     if (SEC['관리자']) GROUPS.push({ key: 'admin', icon: '👑', name: '관리자', desc: '쿠폰 · 사용자 관리', flat: '관리자' });
 
@@ -341,6 +361,8 @@
     });
     var learnOff = el.querySelector('#stLearnOff');
     if (learnOff) learnOff.onchange = function () { ClaudeAI.setLearnOff(this.checked); };
+    var stCam = el.querySelector('#stCam');
+    if (stCam) stCam.onchange = function () { if (window.CamMode) CamMode.set(this.value); };
     var stMode = el.querySelector('#stMode');
     if (stMode) stMode.onchange = function () { setMode(this.value); };
     var stTheme = el.querySelector('#stTheme');

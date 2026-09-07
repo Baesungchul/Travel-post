@@ -54,6 +54,9 @@
 
 <!-- 갤러리 불러오기(보조 경로) -->
 <input type="file" id="filePick" accept="image/*" multiple style="display:none">
+<!-- 폰 기본 카메라 — capture 가 있으면 안드로이드가 갤러리 대신 카메라 앱을 바로 연다.
+     ⚠️ multiple 을 붙여도 대부분의 카메라 앱이 무시하고 한 장만 준다 — 그게 정상이다. -->
+<input type="file" id="camPick" accept="image/*" capture="environment" style="display:none">
 
 <!-- ⚠️ 로드 순서: 벤더 → 설정 → 토큰 → 카탈로그 → 프로필 → 저장소 → 상태 → 기능 → 화면
      ⚠️ 새 파일을 넣으면 sw.js 의 SHELL 에도 넣고 VER 을 올릴 것 (tools/check.js 가 검사한다) -->

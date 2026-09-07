@@ -355,7 +355,13 @@
       });
     };
     el.querySelector('#plFind').onclick = UI.openPlaceFinder;
-    el.querySelector('#btnCam').onclick = function () { openInAppCamera(_curTagFilter || tags[0]); };
+    el.querySelector('#btnCam').onclick = function () {
+      var tag = _curTagFilter || tags[0];
+      /* 처음 촬영할 때 한 번만 물어본다 (사용자 요청 2026-09-07).
+         ⚠️ 고른 뒤 바로 그 카메라로 이어진다 — 물어만 보고 끝나면 두 번 눌러야 한다. */
+      if (window.CamMode && !CamMode.chosen()) { UI.askCameraMode(tag); return; }
+      shoot(tag);
+    };
     el.querySelector('#btnPick').onclick = function () {
       var f = document.getElementById('filePick');
       f.value = '';
@@ -368,6 +374,59 @@
       if (!p.photos.length && !p.memo) { showToast('사진이나 메모가 있어야 글을 만들 수 있어요', 'err'); return; }
       UI.openWriter(p);
     };
+  };
+
+  /* 설정대로 카메라를 연다 (camera.js CamMode) — 기본은 앱 카메라 */
+  function shoot(tag) {
+    if (window.CamMode && CamMode.isSystem()) { UI.shootWithSystemCamera(tag); return; }
+    openInAppCamera(tag);
+  }
+
+  /* ── 처음 촬영할 때 한 번 물어보기 (사용자 요청 2026-09-07) ──
+     설정에 항목만 두면 대부분 못 찾는다. 처음 한 번은 물어보고, 그 자리에서
+     "설정에서 바꿀 수 있다"고 알려 준다. 그다음부터는 다시 묻지 않는다.
+     ⚠️ 어느 쪽을 골라도 곧바로 그 카메라가 열린다 — 고르고 다시 눌러야 하면 짜증난다.
+     ☠️ 폰 카메라 쪽은 파일 입력을 여는 것이라 **사용자 클릭 안에서 바로** 불러야 한다.
+        (비동기로 미루면 브라우저가 막는다) */
+  UI.askCameraMode = function (tag) {
+    var ov = overlay({
+      title: '어떤 카메라로 찍을까요?',
+      body:
+        '<button type="button" class="btn wide primary" id="cmInapp">앱 카메라</button>' +
+        '<div class="mini" style="margin:6px 0 14px;">찍기 전에 사진 태그를 고르고 ' +
+          '비율(4:5 · 1:1 · 3:4 · 4:3)을 맞춰 줍니다. 여러 장을 이어서 찍기도 편합니다.</div>' +
+        '<button type="button" class="btn wide ghost" id="cmSystem">폰 기본 카메라</button>' +
+        '<div class="mini" style="margin-top:6px;">쓰시던 카메라 화면과 화질 보정을 그대로 씁니다. ' +
+          '대신 <b>한 번에 한 장</b>씩 들어옵니다.</div>' +
+        '<div class="mini" style="margin-top:16px;">나중에 <b>설정 → 촬영 · 화면 · 정보 → 촬영</b> 에서 ' +
+          '언제든 바꿀 수 있어요.</div>'
+    });
+    var pick = function (mode) {
+      if (window.CamMode) CamMode.set(mode);
+      ov.close();
+      shoot(tag);
+    };
+    ov.querySelector('#cmInapp').onclick = function () { pick('inapp'); };
+    ov.querySelector('#cmSystem').onclick = function () { pick('system'); };
+  };
+
+  /* ── 폰 기본 카메라로 찍기 (사용자 요청 2026-09-07) ──
+     capture 속성이 붙은 입력을 열면 안드로이드가 갤러리 대신 **카메라 앱**을 바로 띄운다.
+     ☠️ 한 번에 한 장이다. multiple 을 붙여도 대부분의 카메라 앱이 무시한다 — 설정 설명에 적어 뒀다.
+     ⚠️ 태그는 지금 고른 태그로 붙는다(앱 카메라처럼 찍기 전에 고를 화면이 없다).
+     ⚠️ 카메라 앱의 위치 태그가 꺼져 있으면 사진에 좌표가 안 박혀 온다. EXIF 에서 못 찾았으면
+        앱 카메라와 똑같이 기기 위치를 한 번 읽어 장소에 채운다(camera.js ensurePlaceGeo). */
+  UI.shootWithSystemCamera = function (tag) {
+    var f = document.getElementById('camPick');
+    if (!f) { openInAppCamera(tag); return; }     /* 옛 화면이면 앱 카메라로 — 막다른 길을 만들지 않는다 */
+    f.value = '';
+    f.onchange = function () {
+      if (!f.files || !f.files.length) return;    /* 사용자가 취소함 */
+      Photos.addFromFiles(f.files, tag).then(function () {
+        if (window.ensurePlaceGeo) ensurePlaceGeo();
+      });
+    };
+    f.click();
   };
 
   /* ── 여러 장 한 번에 태그 바꾸기 ──

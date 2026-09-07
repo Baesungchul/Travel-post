@@ -253,7 +253,7 @@ const EXIFB64=makeExifJpegB64();
   await chk('설정 — 항목 구성 (2026-09-05 재구성: 계정이 맨 위 단독)', async()=>{
     const t=await page.locator('#pnSettings').innerText();
     /* 2026-09-06: '구독 · 광고 제거' 를 계정 바로 밑에 추가 (사용자 요청) */
-    ['계정','구독 · 광고 제거','카테고리 · 글쓰기','백업 · 이용량','화면 · 정보']
+    ['계정','구독 · 광고 제거','카테고리 · 글쓰기','백업 · 이용량','촬영 · 화면 · 정보']
       .forEach(k=>must(t.includes(k),k+' 없음'));
     /* 계정이 첫 항목이어야 한다 — 순서가 요구사항이다 */
     const first=await page.locator('#pnSettings .set-group-head').first().innerText();
@@ -841,6 +841,57 @@ const EXIFB64=makeExifJpegB64();
     must(r.saved==='본문입니다. 고침', '저장이 안 됐다: "'+r.saved+'"');
     must(r.closed, '저장했는데 시트가 안 닫혔다 — 됐다는 표시가 없다');
     return '버튼줄 '+r.labels.join(' · ')+' · 저장 후 닫힘';
+  });
+  /* ★ 2026-09-07 사용자 요청: "앱 내 자체 카메라도 쓰고 설정에서 폰의 기본 카메라로도
+     쓸 수 있게 선택할 수 있게" — 설정 값이 실제로 촬영 버튼의 행선지를 바꾸는지 본다.
+     ☠️ 설정만 생기고 버튼이 늘 앱 카메라를 열면 조용히 무시되는 설정이 된다. */
+  await chk('촬영 방식 — 설정대로 앱 카메라 / 폰 카메라가 열린다', async()=>{
+    const r=await page.evaluate(async()=>{
+      const wait=ms=>new Promise(r=>setTimeout(r,ms));
+      const out={def:CamMode.get()};
+      const ci=document.getElementById('camPick');
+      out.capture = ci ? ci.getAttribute('capture') : null;
+      const pl=Place.current()||Place.create(); await Place.save();
+      UI.switchTab('now'); await wait(400);
+      let opened=null;
+      const realOpen=window.openInAppCamera; window.openInAppCamera=()=>{opened='inapp';};
+      const realClick=HTMLInputElement.prototype.click;
+      HTMLInputElement.prototype.click=function(){ if(this.id==='camPick') opened='system'; else realClick.call(this); };
+      /* ① 아직 안 골랐으면 처음 한 번 물어보고, 고르면 곧바로 그 카메라가 열린다 */
+      try { localStorage.removeItem(CFG.k('cam_mode_v1')); } catch(e) {}
+      out.askedBefore = CamMode.chosen();
+      document.querySelector('#btnCam').click(); await wait(350);
+      out.askOpened = !!document.querySelector('.sheet-ov');
+      out.askTellsSettings = /설정 → 촬영/.test((document.querySelector('.sheet-bd')||{}).textContent||'');
+      opened=null;
+      const pickBtn=document.querySelector('#cmInapp');
+      if(pickBtn){ pickBtn.click(); await wait(300); }
+      out.askThenOpened = opened;
+      out.askedAfter = CamMode.chosen();
+      opened=null;
+      document.querySelector('#btnCam').click(); await wait(250);
+      out.askedTwice = !!document.querySelector('.sheet-ov');
+      document.querySelectorAll('.sheet-ov').forEach(e=>e.remove()); syncBodyLock();
+      /* ② 고른 값대로 갈라지는가 */
+      CamMode.set('system'); opened=null;
+      document.querySelector('#btnCam').click(); await wait(150); out.system=opened;
+      CamMode.set('inapp'); opened=null;
+      document.querySelector('#btnCam').click(); await wait(150); out.inapp=opened;
+      HTMLInputElement.prototype.click=realClick; window.openInAppCamera=realOpen;
+      if(window.closeInAppCamera) closeInAppCamera();
+      return out;
+    });
+    must(r.def==='inapp', '기본값이 앱 카메라가 아니다: '+r.def);
+    must(r.capture==='environment', '폰 카메라용 입력에 capture 가 없다 — 갤러리가 열린다');
+    must(r.askedBefore===false, '아무것도 안 골랐는데 이미 고른 것으로 본다');
+    must(r.askOpened, '처음 촬영인데 안 물어봤다');
+    must(r.askTellsSettings, '물어보는 창에 "설정에서 바꿀 수 있다"는 안내가 없다');
+    must(r.askThenOpened==='inapp', '골랐는데 그 카메라가 바로 안 열렸다 (두 번 눌러야 한다)');
+    must(r.askedAfter===true, '골랐는데 저장이 안 됐다');
+    must(!r.askedTwice, '두 번째 촬영에서도 또 물어본다');
+    must(r.system==='system', '폰 카메라로 골랐는데 앱 카메라가 열린다');
+    must(r.inapp==='inapp', '앱 카메라로 골랐는데 다른 게 열린다');
+    return '처음 한 번만 물어봄 · 고른 즉시 열림 · 설정대로 갈라짐';
   });
   await chk('사진 URL 캐시에 상한이 있다', async()=>{
     const r=await page.evaluate(()=>({max:Photos.CACHE_MAX, now:Photos.cacheSize()}));

@@ -143,7 +143,15 @@ const gates = [
   ['ui_posts.js', 'stopBusy()', '글 생성이 끝나면 진행 표시를 멈춘다 (안 멈추면 타이머가 계속 돈다)'],
   ['ui_posts.js', 'stopTitle()', '제목 짓기가 끝나면 진행 표시를 멈춘다'],
   ['ui_posts.js', 'autoGrow', '편집 상자를 글 길이에 맞춰 늘림 (상자 안에 또 스크롤이 생기면 마지막 줄이 잘린다)'],
-  ['ui_posts.js', "id=\"poSave\"", '완성글 시트의 저장 버튼 (조용히 저장되기만 하면 고친 게 남는지 알 수 없다)']
+  ['ui_posts.js', "id=\"poSave\"", '완성글 시트의 저장 버튼 (조용히 저장되기만 하면 고친 게 남는지 알 수 없다)'],
+  /* ★ 2026-09-07 — 촬영 방식 고르기 (앱 카메라 / 폰 기본 카메라) */
+  ['camera.js',   'window.CamMode', '촬영 방식 설정 (없으면 늘 앱 카메라만 열린다)'],
+  ['ui_now.js',   'CamMode.isSystem()', '촬영 버튼이 설정을 본다 (안 보면 설정이 조용히 무시된다)'],
+  ['ui_settings.js', "id=\"stCam\"", '설정에 촬영 방식 고르는 칸'],
+  ['../index.html', 'id="camPick"', '폰 기본 카메라를 여는 입력 (capture 가 있어야 갤러리가 아니라 카메라가 열린다)'],
+  ['camera.js',   'chosen:', '한 번이라도 직접 골랐는지 구분 (없으면 처음 물어볼 시점을 못 잡는다)'],
+  ['ui_now.js',   'UI.askCameraMode', '처음 촬영할 때 한 번 물어보기'],
+  ['ui_now.js',   '설정 → 촬영', '물어보는 창에서 "설정에서 바꿀 수 있다"고 알려 준다']
 ];
 gates.forEach(([f, needle, label]) => {
   const src = read(path.join(JS, f));

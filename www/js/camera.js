@@ -26,6 +26,29 @@
   var RES_KEY   = CFG.k('cam_res_v1');
   var RATIO_KEY = CFG.k('cam_ratio_v1');
 
+  /* ── 어느 카메라로 찍을까 (사용자 요청 2026-09-07) ──
+     'inapp'  앱 내장 카메라 — 찍기 전에 태그를 고르고, 비율을 맞추고, 찍는 순간 위치를 잡는다
+     'system' 폰 기본 카메라 앱 — 손에 익은 화면과 화질 보정을 그대로 쓴다. 대신 한 장씩 들어온다.
+     ☠️ 기본은 inapp 이다. 태그·비율·위치는 글 마커·공유 순서·파일명까지 관통하는 축이라,
+        아무것도 안 고른 사람에게는 그 축이 살아 있는 쪽이 맞다. */
+  var MODE_KEY = CFG.k('cam_mode_v1');
+  window.CamMode = {
+    get: function () {
+      try { return localStorage.getItem(MODE_KEY) === 'system' ? 'system' : 'inapp'; }
+      catch (e) { return 'inapp'; }
+    },
+    set: function (v) {
+      try { localStorage.setItem(MODE_KEY, v === 'system' ? 'system' : 'inapp'); } catch (e) {}
+    },
+    isSystem: function () { return window.CamMode.get() === 'system'; },
+    /* 사용자가 한 번이라도 직접 고른 적이 있나 — 처음 촬영할 때만 물어보려고 쓴다.
+       ☠️ get() 은 안 골랐어도 'inapp' 을 돌려준다(기본값). '안 골랐음'은 이 함수로만 안다. */
+    chosen: function () {
+      try { return localStorage.getItem(MODE_KEY) === 'inapp' || localStorage.getItem(MODE_KEY) === 'system'; }
+      catch (e) { return true; }   /* 저장소를 못 쓰면 매번 묻지 않는다 */
+    }
+  };
+
   var RATIOS = {
     '4:5': { r: 4 / 5,  label: '4:5 세로', hint: '인스타 피드' },
     '1:1': { r: 1,      label: '1:1 정사각', hint: '음식' },
@@ -253,6 +276,8 @@
     return !!(overlayEl && overlayEl.style.display === 'flex');
   };
   window.closeInAppCamera = close;
+  /* 폰 기본 카메라로 찍었을 때도 같은 방식으로 위치를 채운다 (ui_now.js 참고) */
+  window.ensurePlaceGeo = function () { ensureGeo(); };
 
   /* 외부 진입점 — 지금 탭의 촬영 버튼이 부른다. tag 를 주면 그 태그로 시작한다. */
   window.openInAppCamera = function (tag) {
