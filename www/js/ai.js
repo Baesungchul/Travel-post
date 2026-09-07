@@ -451,6 +451,11 @@
     var sys = catFill(ch.sys, pf);
     Tokens.assertNoToken(sys, 'CHANNELS.' + chId + '.sys');
     if (guide) sys += '\n\n[반드시 반영할 지침]\n' + catFill(guide, pf);
+    /* ☠️ 2026-09-08 마크다운 구분선 금지 — 블로그 편집기가 선으로 바꿔 주지 않아
+         본문에 "---" 라는 글자로 그대로 발행된다(현장매니저에서 실제로 겪음).
+       ⚠️ preview.js·post.html 에서 걸러내기도 하지만, 애초에 안 만들게 하는 쪽이 낫다. */
+    sys += '\n\n[출력 형식] 마크다운 구분선(---, ***, ___)을 쓰지 마세요. ' +
+           '블로그 편집기가 선으로 바꿔 주지 않아 본문에 "---" 라는 글자로 그대로 남습니다. 단락은 빈 줄로만 나눕니다.';
     sys += buildFewShot(chId);
 
     var content = [];

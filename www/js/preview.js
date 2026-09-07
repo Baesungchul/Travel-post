@@ -35,7 +35,30 @@
     return new RegExp(MARK_SRC, 'i').test(String(text || ''));
   };
 
-  function build(text, photos, urls, tags) {
+  function build(text, photos, urls, tags, opts) {
+    opts = opts || {};
+    /* 사진마다 '글에 적힌 마커' — 참고 화면에서 이걸로 짝을 맞춘다 (2026-09-08).
+       ☠️ 번호는 태그별 통산이다. 글의 마커가 (사진: 상호 - 외관) 처럼 태그로 적히고
+          Photos.ordered 순서가 그 순서다 — 어긋나면 참고표가 거짓말이 된다.
+       ⚠️ 2026-09-08 사용자 요청: 태그 이름만 적지 말고 **마커 원문 그대로** 적는다.
+          붙여넣은 글에는 (사진: 외관) 이라고 박혀 있어서, 참고 화면도 글자 그대로
+          같아야 눈으로 대조가 된다(ai.js 의 '(사진: ' + t + ')' 와 같은 형식).
+       ☠️ 현장매니저와 다른 점: 여기 마커 하나는 그 태그의 사진을 **여러 장** 받는다.
+          그래서 같은 마커가 두 장 이상이면 몇 번째인지도 같이 적는다. */
+    var caps = null, capByUrl = {};
+    if (opts.captions) {
+      var ord = {}, tot = {};
+      photos.forEach(function (x) {
+        var t = (x && x.tag) || '사진';
+        tot[t] = (tot[t] || 0) + 1;
+      });
+      caps = photos.map(function (x) {
+        var t = (x && x.tag) || '사진';
+        ord[t] = (ord[t] || 0) + 1;
+        return { mark: '(사진: ' + t + ')', nth: tot[t] > 1 ? (ord[t] + '번째') : '' };
+      });
+      urls.forEach(function (u, i) { if (u && capByUrl[u] == null) capByUrl[u] = caps[i]; });
+    }
     var used = urls.map(function () { return false; });
     var idByUrl = {};
     urls.forEach(function (u, i) { if (u && photos[i]) idByUrl[u] = photos[i].id; });
@@ -72,12 +95,23 @@
     function imgs(list) {
       return list.map(function (u) {
         var id = idByUrl[u] || '';
-        return '<img src="' + esc(u) + '"' + (id ? ' data-ph="' + esc(id) + '"' : '') + ' alt="" loading="lazy">';
+        var img = '<img src="' + esc(u) + '"' + (id ? ' data-ph="' + esc(id) + '"' : '') + ' alt="" loading="lazy">';
+        if (!caps) return img;
+        /* 참고 화면 — 사진 밑에 글에 박힌 마커를 그대로 적는다 */
+        var c = capByUrl[u] || { mark: '(사진)', nth: '' };
+        return '<figure class="pv-fig">' + img +
+               '<figcaption><span class="pv-mk">' + esc(c.mark) + '</span>' +
+               (c.nth ? '<span class="pv-no">' + esc(c.nth) + '</span>' : '') +
+               '</figcaption></figure>';
       }).join('');
     }
     function para(t) {
       t = t.trim();
       if (!t) return '';
+      /* ☠️ 2026-09-08 마크다운 구분선(---, ***, ___)은 버린다. AI 가 문단 사이에 넣는데,
+           그대로 두면 블로그 본문에 "---" 글자로 발행된다(현장매니저에서 실제로 겪음).
+         ⚠️ www/site/post.html 에도 같은 코드가 있다 — 같이 고칠 것. */
+      if (/^([-*_])\1{2,}$/.test(t.replace(/\s/g, ''))) return '';
       return '<p>' + esc(t).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>') + '</p>';
     }
 
@@ -110,7 +144,7 @@
   /* 글 + 장소 → 사진이 박힌 HTML.
      사진은 IndexedDB Blob 이라 URL 을 만들어야 하는데, Photos.url() 이 캐시·해제를 이미 맡고 있다
      (여기서 createObjectURL 을 따로 쓰면 화면을 닫을 때 새는 URL 이 생긴다 — 쓰지 말 것). */
-  P.render = function (text, place) {
+  P.render = function (text, place, opts) {
     var photos = [];
     try { photos = (window.Photos && Photos.ordered) ? Photos.ordered(place) : []; } catch (e) {}
     var tags = [];
@@ -119,15 +153,17 @@
     if (!photos.length) {
       return Promise.resolve(
         '<div class="pv-empty">이 장소에 담긴 사진이 없어서 글만 보여줍니다.</div>' +
-        build(text, [], [], [])
+        build(text, [], [], [], opts)
       );
     }
     return Promise.all(photos.map(function (x) {
       return Photos.url(x.id).catch(function () { return ''; });
     })).then(function (urls) {
-      return build(text, photos, urls, tags);
+      return build(text, photos, urls, tags, opts);
     });
   };
+  /* 참고 화면용 — 사진 밑에 글에 박힌 마커 원문((사진: 외관) …)을 그대로 적어 준다 */
+  P.renderRef = function (text, place) { return P.render(text, place, { captions: true }); };
 
   console.log('[Preview] 로드됨');
 })();

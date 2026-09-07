@@ -923,6 +923,40 @@ const EXIFB64=makeExifJpegB64();
     must(r.before!==r.after, '달이 실제로 안 바뀜 ('+r.before+' → '+r.after+')');
     return '나감 '+r.out+'px → 들어옴 +'+r.inn+'px → 제자리 '+r.end+'px · '+r.before+'→'+r.after;
   });
+  /* ☠️ 2026-09-08 — 현장매니저에서 발행 24시간 뒤 블로그 글의 사진이 전부
+     "존재하지 않는 이미지입니다" 로 바뀐 사고. 참고 화면은 그 뒷수습으로 만든 것이라,
+     사진 밑에 '글에 박힌 마커' 가 실제로 붙는지 눈으로 재 본다.
+     ☠️ 사용자 요청(2026-09-08): 태그 이름이 아니라 **마커 원문 그대로**여야 한다.
+        글은 (사진: 외관) 인데 화면이 '외관 1' 이면 대조가 안 된다.
+        마커 하나가 사진 여러 장을 받으므로 몇 번째인지는 옆에 따로 붙인다. */
+  await chk('참고 화면 — 사진 밑에 글에 박힌 마커가 그대로 붙는다', async()=>{
+    const r=await page.evaluate(async()=>{
+      const svg=c=>'data:image/svg+xml;base64,'+btoa(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="60" height="40"><rect width="60" height="40" fill="'+c+'"/></svg>');
+      const U={q1:svg('#c33'),q2:svg('#3c3'),q3:svg('#33c')};
+      const realOrd=Photos.ordered, realUrl=Photos.url;
+      Photos.ordered=()=>[{id:'q1',tag:'외관'},{id:'q2',tag:'외관'},{id:'q3',tag:'음식'}];
+      Photos.url=id=>Promise.resolve(U[id]);
+      const html=await Preview.renderRef('제목\n\n---\n\n(사진: 외관)\n\n본문\n\n(사진: 음식)\n\n끝', {});
+      Photos.ordered=realOrd; Photos.url=realUrl;
+      const d=document.createElement('div'); d.innerHTML=html;
+      const marks=[...d.querySelectorAll('figcaption .pv-mk')].map(x=>x.textContent);
+      const nos=[...d.querySelectorAll('figcaption')].map(x=>{
+        const n=x.querySelector('.pv-no'); return n?n.textContent:'';
+      });
+      const imgs=d.querySelectorAll('img').length;
+      const rule=/(^|>)\s*---\s*(<|$)/.test(html);
+      return {marks,nos,imgs,rule,txt:d.textContent};
+    });
+    must(r.imgs===3, '사진 3장이 다 안 나옴 ('+r.imgs+')');
+    must(r.marks[0]==='(사진: 외관)' && r.marks[1]==='(사진: 외관)' && r.marks[2]==='(사진: 음식)',
+         '사진 밑 마커가 글에 박힌 글자와 다름: '+JSON.stringify(r.marks));
+    /* 같은 마커가 두 장이면 몇 번째인지, 한 장뿐이면 군더더기 없이 */
+    must(r.nos[0]==='1번째' && r.nos[1]==='2번째' && r.nos[2]==='',
+         '같은 마커의 순번이 잘못 붙음: '+JSON.stringify(r.nos));
+    must(!r.rule && r.txt.indexOf('---')<0, '마크다운 구분선이 글자로 남음');
+    return '마커 '+r.marks.join(' · ')+' · 구분선 제거됨';
+  });
   await chk('사진 URL 캐시에 상한이 있다', async()=>{
     const r=await page.evaluate(()=>({max:Photos.CACHE_MAX, now:Photos.cacheSize()}));
     must(typeof r.max==='number'&&r.max>0,'상한이 없음 — 사진 Blob 이 계속 쌓인다');

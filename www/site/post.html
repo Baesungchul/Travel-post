@@ -10,6 +10,12 @@
   현장매니저 site/post.html 이식. 바뀐 것은 **사진 마커의 축**뿐이다.
     (사진: 작업 전) / (사진: 작업 후)  →  (사진: 외관) / (사진: 음식) …  카테고리 태그
 
+  ☠️ 2026-09-08 정정 — 이 페이지는 "붙여넣으면 네이버가 사진을 자기 서버로 가져간다"는
+     전제 위에 있었다. **틀렸다.** 네이버가 안 가져가고 이 페이지 주소를 그대로 링크로
+     걸어 두는 경우가 있고, 그러면 링크 만료와 함께 발행된 글의 사진이 전부
+     "존재하지 않는 이미지입니다"로 바뀐다(현장매니저에서 실제로 겪음, 24시간 뒤).
+  → 기본 길은 ① 사진 내려받기 ② 글+사진 붙여넣기 ③ 붙여넣은 사진을 [교체] 로 내 사진으로.
+     붙여넣기가 자리를 잡아 주고, 교체한 사진은 블로그 서버로 올라가 링크와 무관해진다.
   ☠️ 이미지는 반드시 실제 https URL 이어야 한다. base64(data:) 로 심으면 네이버가 걸러낸다.
   · Firestore REST 로 문서 하나만 읽는다(SDK 미사용 — 페이지를 가볍게).
   · 링크는 24시간 뒤 만료. 만료 검사는 여기서, 실제 삭제는 서버 함수가 한다.
@@ -36,32 +42,58 @@
   ol{ margin:12px 0 0 18px; padding:0; font-size:13.5px; }
   ol li{ margin-bottom:4px; }
   .exp{ font-size:12px; color:var(--mu); margin-top:10px; }
+  .warn{ border:1.5px solid var(--wn); border-radius:10px; padding:10px 12px; font-size:13px; color:var(--wn); font-weight:700; }
   .tip{ font-size:12.5px; color:var(--mu); line-height:1.7; margin-top:12px; padding-top:12px; border-top:1px dashed var(--bd); }
   /* ── 복사 대상 ── 여기 안의 것만 클립보드로 간다. 스타일 최소로 둬야 에디터에서 안 깨진다 */
   #post{ font-size:15px; line-height:1.9; }
   #post p{ margin:0 0 14px; white-space:pre-wrap; }
   #post img{ display:block; width:100%; height:auto; margin:0 0 16px; border-radius:6px; }
   .ph{ text-align:center; color:var(--mu); padding:40px 0; font-size:14px; }
+  /* 사진 낱장 받기 목록 (2026-09-08) — #post 밖이라 복사에 안 섞인다 */
+  .pgrid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(120px,1fr)); gap:10px; }
+  .pcell{ border:1px solid var(--bd); border-radius:10px; padding:7px; text-align:center; }
+  .pcell img{ display:block; width:100%; aspect-ratio:4/3; object-fit:cover; border-radius:6px; }
+  .pcap{ font-size:11px; color:var(--mu); margin:5px 0 6px; }
+  .pcell .btn{ width:100%; margin-top:0; font-size:12px; padding:6px 0; }
 </style>
 </head>
 <body>
 <div class="wrap">
   <div class="card">
     <h1>📋 블로그에 붙여넣기</h1>
-    <p class="sub">아래 버튼을 누르면 <b>글과 사진이 함께</b> 복사됩니다. 블로그 글쓰기 화면에서 붙여넣기(Ctrl+V) 하세요.</p>
+    <p class="sub">붙여넣은 다음 <b>사진만 내 것으로 교체</b>하면 끝입니다.</p>
+    <div class="warn" style="margin-top:12px;">
+      ⚠️ <b>사진은 반드시 교체하세요</b><br>
+      붙여넣은 사진은 아직 <b>이 링크에 걸린 사진</b>입니다. 그대로 발행하면<br>
+      · 링크가 사라질 때 사진이 전부 <b>“존재하지 않는 이미지입니다”</b> 로 바뀝니다<br>
+      · 외부 링크로 걸린 사진은 내 블로그에 쌓이지 않아 <b>저품질의 원인</b>이 됩니다<br>
+      아래 4~6번을 꼭 하세요.
+    </div>
     <div id="ctl" style="margin-top:14px;"></div>
     <ol>
-      <li>아래 <b>글+사진 전체 복사</b>를 누릅니다</li>
-      <li>네이버 블로그 → <b>글쓰기</b>를 엽니다</li>
-      <li>본문 칸을 클릭하고 <b>Ctrl+V</b> (Mac 은 ⌘V)</li>
-      <li>사진은 네이버가 자동으로 받아 옮깁니다 — 잠깐 기다리면 됩니다</li>
+      <li>아래 <b>사진 내려받기</b>를 눌러 사진을 PC 에 저장합니다</li>
+      <li><b>글+사진 전체 복사</b>를 누릅니다</li>
+      <li>블로그 → <b>글쓰기</b> 본문에 <b>Ctrl+V</b> (Mac 은 ⌘V) — 글과 사진이 제자리에 들어갑니다</li>
+      <li>붙여넣은 <b>사진을 클릭</b>하면 사진 위에 도구막대가 뜹니다</li>
+      <li><b>교체</b>를 눌러, 1번에서 저장한 <b>같은 번호의 사진</b>을 고릅니다 (01, 02 … 순서가 같습니다)</li>
+      <li><b>모든 사진을 교체한 뒤</b> 발행합니다</li>
     </ol>
     <div class="tip" id="zipTip" style="display:none;">
-      <b>원본 화질로 직접 첨부하고 싶다면</b> — <b>사진 전체 내려받기</b>로 ZIP 을 받아 압축을 푼 뒤,
-      글쓰기의 <b>[사진]</b> 버튼으로 번호 순서대로 첨부하고 글은 <b>글만 복사</b>로 붙여넣으세요.
+      교체하면 사진이 블로그 서버로 올라가서, 이 링크가 사라져도 글은 그대로 남습니다.<br>
+      사진 번호는 글 속 표시(사진: 외관, 사진: 음식 …)와 같은 순서입니다.<br>
+      사진을 하나라도 안 바꾸면 <b>그 자리만 나중에 깨집니다</b> — 빠뜨린 게 없는지 확인하세요.
     </div>
     <div class="exp" id="exp"></div>
   </div>
+
+  <!-- 사진 낱장 받기 — ☠️ #post 밖에 둔다. 안에 넣으면 '글+사진 전체 복사'가
+       버튼 글자까지 클립보드에 담아 블로그 본문에 섞인다. -->
+  <div class="card" id="photoCard" style="display:none;">
+    <h2 style="font-size:15px;margin:0 0 4px;">사진 내려받기</h2>
+    <p class="sub" style="margin:0 0 12px;">번호 순서가 글 속 사진 순서와 같습니다.</p>
+    <div id="photoList" class="pgrid"></div>
+  </div>
+
   <div class="card">
     <div id="post"><div class="ph">불러오는 중…</div></div>
   </div>
@@ -126,8 +158,10 @@
 
     if (expMs) {
       var h = Math.max(0, Math.round((expMs - Date.now()) / 3600000));
-      $('exp').textContent = '⏳ 이 링크는 ' + (h > 0 ? ('약 ' + h + '시간 뒤') : '곧') + ' 만료됩니다 (' +
-        new Date(expMs).toLocaleString('ko-KR') + '). 붙여넣고 나면 사진은 블로그 쪽에 남으니 지워져도 괜찮습니다.';
+      /* ☠️ 2026-09-08 — 예전엔 "붙여넣고 나면 사진은 블로그 쪽에 남으니 지워져도 괜찮습니다"
+           라고 적혀 있었다. 사실이 아니어서 발행된 글의 사진이 24시간 뒤 다 깨졌다. */
+      $('exp').innerHTML = '⏳ 이 링크는 ' + (h > 0 ? ('약 ' + h + '시간 뒤') : '곧') + ' 만료됩니다 (' +
+        new Date(expMs).toLocaleString('ko-KR') + '). 만료되면 <b>교체하지 않은 사진은 블로그에서 사라집니다.</b>';
     }
   }).catch(function (e) {
     if (String(e && e.message) === 'NOTFOUND') fail('링크를 찾을 수 없습니다', '이미 만료되었거나 삭제된 링크입니다.');
@@ -168,6 +202,10 @@
     function para(t) {
       t = t.trim();
       if (!t) return '';
+      /* ☠️ 2026-09-08 마크다운 구분선(---, ***, ___)은 버린다. AI 가 문단 사이에 넣는데,
+           예전엔 그대로 <p>---</p> 가 되어 블로그 본문에 "---" 글자로 발행됐다.
+         ⚠️ www/js/preview.js 에도 같은 코드가 있다 — 같이 고칠 것. */
+      if (/^([-*_])\1{2,}$/.test(t.replace(/\s/g, ''))) return '';
       return '<p>' + esc(t).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>') + '</p>';
     }
 
@@ -190,15 +228,96 @@
     html += imgs(photos.filter(function (u, i) { return !used[i]; }));
     $('post').innerHTML = html;
 
+    /* ⭐ 2026-09-08 버튼을 단계 순서에 맞춘다 — ① 사진 내려받기 ② 글+사진 전체 복사.
+         ZIP 은 "또 풀어야 한다"는 지적이 있어 낱장 받기를 같이 뒀다. */
+    _zipList = photos.map(function (u, i) { return { url: u, tag: kinds[i] || '', idx: tags.indexOf(kinds[i]) }; });
     $('ctl').innerHTML =
-      '<button class="btn" id="copyAll">📋 글+사진 전체 복사</button>' +
+      '<button class="btn" id="saveAll">⬇ 사진 내려받기 (' + photos.length + '장)</button>' +
+      '<button class="btn" id="copyAll" style="margin-top:8px;">📋 글+사진 전체 복사</button>' +
       '<button class="btn ghost" id="copyText">글만 복사</button>' +
-      '<button class="btn ghost" id="zipAll">⬇ 사진 전체 내려받기 (ZIP · ' + photos.length + '장)</button>';
+      '<button class="btn ghost" id="zipAll">사진 한꺼번에 받기 (ZIP)</button>';
+    $('saveAll').onclick = saveAllOneByOne;
     $('copyAll').onclick = copyAll;
     $('copyText').onclick = function () { copyPlain($('post').innerText); };
-    _zipList = photos.map(function (u, i) { return { url: u, tag: kinds[i] || '', idx: tags.indexOf(kinds[i]) }; });
     $('zipAll').onclick = downloadZip;
     $('zipTip').style.display = '';
+    renderPhotoCard();
+  }
+
+  /* ═══════════════════════════════════════════════════════════
+     사진 낱장 받기 — 2026-09-08 (사용자: "ZIP 은 또 풀어야 하잖아")
+     ☠️ 이 목록은 #post **밖에** 둔다. 안에 버튼을 넣으면 '글+사진 전체 복사'가
+        그 버튼 글자까지 클립보드에 담아 블로그 본문에 섞인다.
+     ⚠️ 파일명은 ASCII 로 둔다 — 크로뮴은 download 속성에 한글이 들어가면 무시하고
+        확장자도 없는 'download' 로 저장한다(ZIP 쪽 주석과 같은 이유).
+     ═══════════════════════════════════════════════════════════ */
+  /* ⚠️ ZIP 과 같은 이름 규칙을 쓴다(아래 zip.file 참고) — 두 방법으로 받아도 번호가 같아야
+       사장님이 헷갈리지 않는다. 태그 이름은 한글이라 파일명에 못 쓰고 번호(t1,t2…)로 적는다. */
+  function photoName(i, it) { return pad2(i + 1) + '_t' + (it.idx >= 0 ? it.idx + 1 : 9) + '.jpg'; }
+
+  function renderPhotoCard() {
+    var box = $('photoList');
+    if (!box || !_zipList.length) return;
+    box.innerHTML = _zipList.map(function (it, i) {
+      return '<div class="pcell">' +
+        '<img src="' + esc(it.url) + '" alt="" loading="lazy">' +
+        '<div class="pcap">' + pad2(i + 1) + (it.tag ? ' · ' + esc(it.tag) : '') + '</div>' +
+        '<button class="btn ghost psave" data-i="' + i + '">저장</button>' +
+      '</div>';
+    }).join('');
+    Array.prototype.forEach.call(box.querySelectorAll('.psave'), function (b) {
+      b.onclick = function () {
+        var i = +b.getAttribute('data-i');
+        var old = b.textContent;
+        b.disabled = true; b.textContent = '받는 중…';
+        saveOne(_zipList[i].url, photoName(i, _zipList[i]))
+          .then(function () { b.textContent = '✅ 저장됨'; })
+          .catch(function () { b.textContent = '실패'; })
+          .then(function () { setTimeout(function () { b.disabled = false; b.textContent = old; }, 2000); });
+      };
+    });
+    $('photoCard').style.display = '';
+  }
+
+  /* 한 장 저장 — 파이어베이스 주소는 교차출처라 <a download> 만으로는 저장이 안 되고
+     새 탭으로 열려 버린다. blob 으로 받아서 같은 출처 URL 로 만들어야 저장된다. */
+  function saveOne(url, name) {
+    return fetch(url).then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.blob();
+    }).then(function (b) {
+      if (!b || !b.size) throw new Error('빈 파일');
+      var u = URL.createObjectURL(b);
+      var a = document.createElement('a');
+      a.href = u; a.download = name;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(function () { try { URL.revokeObjectURL(u); } catch (e) {} }, 10000);
+    });
+  }
+
+  /* 전부 낱장으로 — ⚠️ 브라우저가 '여러 파일 다운로드'를 물어볼 수 있다. 한 번 허용하면 된다.
+     한꺼번에 쏘면 브라우저가 뒤엣것을 버리므로 간격을 둔다. */
+  var _saveBusy = false;
+  function saveAllOneByOne() {
+    if (_saveBusy || !_zipList.length) return;
+    _saveBusy = true;
+    var btn = $('saveAll'), old = btn.textContent;
+    btn.disabled = true;
+    var fail = 0;
+    var chain = Promise.resolve();
+    _zipList.forEach(function (it, i) {
+      chain = chain.then(function () {
+        btn.textContent = '내려받는 중 ' + (i + 1) + '/' + _zipList.length + '…';
+        return saveOne(it.url, photoName(i, it))
+          .catch(function () { fail++; })
+          .then(function () { return new Promise(function (r) { setTimeout(r, 350); }); });
+      });
+    });
+    chain.then(function () {
+      _saveBusy = false; btn.disabled = false;
+      btn.textContent = fail ? ('✅ 받았습니다 — ' + fail + '장 실패') : '✅ ' + _zipList.length + '장 받았습니다 — 이제 붙여넣고 교체하세요';
+      setTimeout(function () { btn.textContent = old; }, 4000);
+    });
   }
 
   /* ── 사진 ZIP 내려받기 ──

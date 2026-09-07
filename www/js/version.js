@@ -1,7 +1,7 @@
 /* APP VERSION
    ⚠️ android/app/build.gradle 의 versionName 과 반드시 같아야 한다. */
-window.APP_VERSION = '0.4.58';
-window.APP_VERSION_DATE = '2026-09-07';
+window.APP_VERSION = '0.4.59';
+window.APP_VERSION_DATE = '2026-09-08';
 (function () {
   function apply() {
     var el = document.getElementById('appVersion');

@@ -158,8 +158,48 @@ const gates = [
   ['calendar.js', "grid.classList.add('cal-anim')", '가로 드래그가 확정될 때 승격 (트랜지션 뒤에 붙이면 늦다)'],
   ['calendar.js', 'void g2.offsetWidth', '들여오기 시작 위치를 스타일에 강제 반영 (빼면 들어오는 연출이 통째로 사라진다)'],
   ['calendar.js', 'return collect(_y, _m)', 'render 가 프로미스를 돌려준다 (안 그러면 옛 달이 붙은 격자를 밀어 넣는다)'],
-  ['calendar.js', 'move(dir2, true)', '끌다 놓으면 그 자리에서 이어서 나간다 (가운데로 되돌리면 한 번 튕긴다)']
+  ['calendar.js', 'move(dir2, true)', '끌다 놓으면 그 자리에서 이어서 나간다 (가운데로 되돌리면 한 번 튕긴다)'],
+  /* ☠️ 2026-09-08 — 현장매니저에서 발행 24시간 뒤 블로그 글의 사진이 전부
+       "존재하지 않는 이미지입니다" 로 바뀐 사고가 있었다. 원인은 코드가 아니라
+       **문구가 한 약속**이었다("붙여넣으면 네이버가 사진을 자동으로 가져갑니다").
+       찍고쓰다도 같은 문구를 물려받고 있어 같이 고쳤다 — 되살아나면 여기서 잡는다. */
+  ['../site/post.html', '사진만 내 것으로 교체', 'PC 링크가 사진을 직접 교체하라고 앞에서 말한다'],
+  ['../site/post.html', '저품질의 원인', '외부 링크 사진이 저품질의 원인이 된다는 경고'],
+  ['../site/post.html', 'function saveOne', '사진 낱장 내려받기 (ZIP 은 또 풀어야 한다)'],
+  ['../site/post.html', 'id="photoCard"', '사진 목록 카드 (☠️ #post 밖이라야 전체 복사에 안 섞인다)'],
+  ['share.js',    'function openRefScreen', '공유 직전에 뜨는 참고 화면 (갤러리는 썸네일만 보여 준다)'],
+  ['share.js',    '사진을 클릭 → 교체', 'PC 링크 안내가 교체 단계를 알려 준다'],
+  ['preview.js',  'P.renderRef = function', '참고 화면용 렌더 (사진 밑에 글에 박힌 마커)'],
+  ['preview.js',  '<figcaption><span class="pv-mk">', '참고 화면에서 사진 밑에 마커를 적는다'],
+  /* ☠️ 2026-09-08 사용자 요청 — 태그 이름만 적지 말고 마커 원문 그대로.
+       글에 (사진: 외관) 이라고 박혀 있는데 화면이 '외관 1' 이면 눈으로 대조가 안 된다.
+       ai.js 의 '(사진: ' + t + ')' 와 같은 형식이라야 한다. */
+  ['preview.js',  "mark: '(사진: ' + t + ')'", '캡션이 마커 원문 형식 (ai.js 와 글자까지 같아야 한다)'],
+  ['../styles.css', '.post-pv .pv-fig figcaption', '참고 화면 캡션 스타일'],
+  ['../styles.css', '.post-pv .pv-fig .pv-mk', '마커 상자 스타일 (글에 있는 그 표시라는 걸 보이게)'],
+  ['ai.js',       '마크다운 구분선(---, ***, ___)을 쓰지 마세요', 'AI 에게 구분선 금지 (본문에 "---" 로 남는다)'],
+  /* ★ 2026-09-08 — 모바일 네이버는 사진을 공유가 아니라 갤러리로 내보낸다.
+       ☠️ 네이티브 플러그인이 필요한 기능이라, 등록이 빠지면 오류 없이 "쓸 수 없습니다" 만 뜬다. */
+  ['gallery.js',  'Capacitor.Plugins.GallerySaver', '갤러리 저장 플러그인 연결'],
+  ['gallery.js',  'G.exportPlace', '장소 사진을 통째로 갤러리에 저장'],
+  ['gallery.js',  'Photos.ordered', '갤러리 저장 순서가 글의 사진 표시와 같은 축'],
+  ['share.js',    'GALLERY_CH = { naver: true }', '네이버만 갤러리 방식 (인스타·스레드·X 는 공유 시트 그대로)'],
+  ['share.js',    'id="shSave"', '1️⃣ 갤러리에 저장 버튼'],
+  ['share.js',    'shareTextOnly(chId, text, p)', '2️⃣ 는 글만 넘긴다 (사진은 ① 에서 이미 갤러리로 갔다)'],
+  ['../index.html', 'js/gallery.js', 'gallery.js 로드 (빠지면 저장 버튼이 조용히 죽는다)']
 ];
+/* ☠️ 안드로이드 쪽 등록 — JS 만 있고 registerPlugin 이 없으면 오류 없이 조용히 죽는다.
+     "갤러리 저장을 쓸 수 없습니다" 토스트만 뜨고 원인을 알 길이 없다(재빌드가 필요한 변경). */
+{
+  const AJ = path.join(ROOT, 'android/app/src/main/java/com/baesungchul/travelpost');
+  const plug = path.join(AJ, 'GallerySaverPlugin.java');
+  const main = path.join(AJ, 'MainActivity.java');
+  if (!fs.existsSync(plug)) bad('GallerySaverPlugin.java 가 없습니다 — 갤러리 저장이 동작하지 않습니다');
+  else if (read(main).indexOf('registerPlugin(GallerySaverPlugin.class)') < 0)
+    bad('MainActivity 가 GallerySaverPlugin 을 등록하지 않습니다 — 오류 없이 조용히 죽습니다');
+  else ok('갤러리 저장 플러그인 등록됨 (안드로이드)');
+}
+
 gates.forEach(([f, needle, label]) => {
   const src = read(path.join(JS, f));
   if (src.indexOf(needle) < 0) bad(label + ' 이 ' + f + ' 에서 사라졌습니다');
