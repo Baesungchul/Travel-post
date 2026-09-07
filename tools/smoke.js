@@ -811,6 +811,37 @@ const EXIFB64=makeExifJpegB64();
     must(r.pv.gap>=0 && r.te.gap>=0, '상자가 버튼줄 아래로 넘어갔다: 미리보기 '+r.pv.gap+'px · 편집 '+r.te.gap+'px');
     return '상자 안 스크롤 없음 · 버튼줄까지 여유 미리보기 '+r.pv.gap+'px · 편집 '+r.te.gap+'px';
   });
+  /* ☠️ 2026-09-07 사용자 신고: "고치기 눌러서 수정했는데 저장이나 닫기 버튼이 없어".
+     beforeClose 가 조용히 저장하고는 있었지만, 화면에 저장할 방법이 없으면 고친 게 남는지
+     알 수가 없다. 버튼이 서 있고 실제로 저장되는지 둘 다 본다. */
+  await chk('완성글 — 저장 버튼이 있고 눌러서 저장·닫힌다', async()=>{
+    const r=await page.evaluate(async()=>{
+      const wait=ms=>new Promise(r=>setTimeout(r,ms));
+      const pl=Place.create(); pl.name='스모크 국밥'; pl.visitedAt='2026-09-07T12:00'; await Place.save();
+      const body='본문입니다.';
+      const post={id:Store.newId('po_'), placeId:pl.id, ch:'naver', text:body, title:'',
+                  createdAt:Date.now(), updatedAt:Date.now()};
+      await Store.postPut(post);
+      UI.switchTab('posts'); await wait(500);
+      document.querySelector('.postRow').click(); await wait(700);
+      const labels=[...document.querySelectorAll('.sheet-ft .btn')].map(b=>b.textContent.trim());
+      const save=document.querySelector('#poSave');
+      if(!save) return {labels, has:false};
+      document.querySelector('#poPvBtn').click(); await wait(300);   // 글 고치기
+      const ta=document.querySelector('#poText');
+      ta.value=body+' 고침'; ta.dispatchEvent(new Event('input'));
+      save.click(); await wait(600);
+      const o=await Store.postGet(post.id);
+      const closed=!document.querySelector('.sheet-ov');
+      document.querySelectorAll('.sheet-ov').forEach(e=>e.remove()); syncBodyLock();
+      UI.switchTab('records');
+      return {labels, has:true, closed, saved:o.text};
+    });
+    must(r.has, '완성글 시트에 저장 버튼이 없다 — 버튼줄: '+JSON.stringify(r.labels));
+    must(r.saved==='본문입니다. 고침', '저장이 안 됐다: "'+r.saved+'"');
+    must(r.closed, '저장했는데 시트가 안 닫혔다 — 됐다는 표시가 없다');
+    return '버튼줄 '+r.labels.join(' · ')+' · 저장 후 닫힘';
+  });
   await chk('사진 URL 캐시에 상한이 있다', async()=>{
     const r=await page.evaluate(()=>({max:Photos.CACHE_MAX, now:Photos.cacheSize()}));
     must(typeof r.max==='number'&&r.max>0,'상한이 없음 — 사진 Blob 이 계속 쌓인다');

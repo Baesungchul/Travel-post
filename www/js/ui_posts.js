@@ -476,10 +476,16 @@
         '<div class="post-pv" id="poPv" style="display:none;"></div>' +
         '<label class="chk" style="margin-top:8px;"><input type="checkbox" id="poPub"' +
           (post.published ? ' checked' : '') + '><span>발행 완료로 표시</span></label>',
+      /* ★ 2026-09-07 사용자 신고: "고치기 눌러서 수정했는데 저장이나 닫기 버튼이 없어.
+         닫으니 저장은 되는 것 같은데" — 실제로 beforeClose 가 저장하고 있었지만,
+         화면에 저장할 방법이 안 보이니 고친 게 남는지 알 수가 없었다.
+         '조용히 저장됨'은 안전장치이지 사용자에게 보여줄 답이 아니다 → 저장 버튼을 세운다.
+         ⚠️ 버튼이 넷이 되어 좁아지므로 복사·올리기의 이모지를 뺐다(글자만으로 충분하다). */
       foot: '<button class="btn danger sm" id="poDel">삭제</button>' +
-            '<button class="btn ghost" id="poCopy">📋 복사</button>' +
-            '<button class="btn primary" id="poShare">📤 올리기</button>',
-      /* 고쳐 놓고 그냥 닫아도 잃지 않는다 (2026-09-05) */
+            '<button class="btn ghost" id="poSave">저장</button>' +
+            '<button class="btn ghost" id="poCopy">복사</button>' +
+            '<button class="btn primary" id="poShare">올리기</button>',
+      /* 저장을 안 누르고 닫아도 잃지 않는다 — 버튼이 생긴 뒤에도 이 안전장치는 남긴다 (2026-09-05) */
       beforeClose: function () {
         try {
           var ta = ov.querySelector('#poText');
@@ -546,6 +552,11 @@
       });
     };
 
+    /* 저장 → 저장하고 닫는다. 시트가 닫히는 것이 곧 "됐다"는 표시라 따로 알리지 않는다.
+       ☠️ commit() 뒤에 닫으므로 beforeClose 의 '바뀌었나' 비교는 false 가 되어 두 번 저장하지 않는다. */
+    ov.querySelector('#poSave').onclick = function () {
+      commit().then(function () { UI.refresh(); ov.close(); });
+    };
     ov.querySelector('#poCopy').onclick = function () {
       commit().then(function () {
         showToast(copyText(post.text) ? '복사했어요' : '복사 실패', 'ok');

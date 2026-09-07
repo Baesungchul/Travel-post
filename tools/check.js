@@ -142,7 +142,8 @@ const gates = [
   ['state.js',    'opts.runSec || 32', '진행 속도를 눈금이 아니라 시간(초)으로 정한다'],
   ['ui_posts.js', 'stopBusy()', '글 생성이 끝나면 진행 표시를 멈춘다 (안 멈추면 타이머가 계속 돈다)'],
   ['ui_posts.js', 'stopTitle()', '제목 짓기가 끝나면 진행 표시를 멈춘다'],
-  ['ui_posts.js', 'autoGrow', '편집 상자를 글 길이에 맞춰 늘림 (상자 안에 또 스크롤이 생기면 마지막 줄이 잘린다)']
+  ['ui_posts.js', 'autoGrow', '편집 상자를 글 길이에 맞춰 늘림 (상자 안에 또 스크롤이 생기면 마지막 줄이 잘린다)'],
+  ['ui_posts.js', "id=\"poSave\"", '완성글 시트의 저장 버튼 (조용히 저장되기만 하면 고친 게 남는지 알 수 없다)']
 ];
 gates.forEach(([f, needle, label]) => {
   const src = read(path.join(JS, f));
