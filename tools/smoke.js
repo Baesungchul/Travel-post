@@ -1038,6 +1038,7 @@ const EXIFB64=makeExifJpegB64();
         bold:  f('**굵은 제목**\n본문'),
         blank: f('\n\n   \n실제 첫 줄\n본문'),
         mark:  f('(사진: 외관)\n진짜 제목'),
+        reco:  f('추천 제목\n1. 후보 하나\n2. 후보 둘\n3. 후보 셋\n\n본문 제목입니다\n본문'),
         long:  f('가'.repeat(150)).length,
         empty: f('')
       };
@@ -1047,6 +1048,8 @@ const EXIFB64=makeExifJpegB64();
     must(r.md==='제목입니다' && r.bold==='굵은 제목','마크다운 기호를 안 떼어 냄');
     must(r.blank==='실제 첫 줄','빈 줄을 못 건너뜀: '+r.blank);
     must(r.mark==='진짜 제목','사진 마커 줄을 제목으로 씀: '+r.mark);
+    /* ☠️ 글 맨 위에 [추천 제목] 블록이 생겼다 — 그 머리글·후보 줄을 제목으로 집으면 안 된다 */
+    must(r.reco==='본문 제목입니다','추천 제목 블록을 못 건너뜀: '+r.reco);
     must(r.long===100,'제목 길이 상한(100)이 안 걸림: '+r.long);
     must(r.empty==='','빈 글에서 터짐');
     return '첫 줄 · [공유] 제거 · 마커 건너뜀 · 100자';

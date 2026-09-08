@@ -192,9 +192,15 @@
   var TITLE_MAX = 100;                     // 블로그 제목 칸 상한
   function firstLine(text) {
     var lines = String(text || '').replace(/\r/g, '').split('\n');
+    /* ☠️ 2026-09-08 — 글 맨 위에 [추천 제목] 블록이 생겼다(ai.js TITLE_BLOCK_GUIDE).
+         머리글이나 후보 줄을 집으면 "추천 제목" 이 제목이 된다 — 건너뛴다. */
+    var skipNumbered = false;
     for (var i = 0; i < lines.length; i++) {
       var t = lines[i].trim();
       if (!t) continue;
+      if (/^\[?\s*추천\s*제목/.test(t)) { skipNumbered = true; continue; }
+      if (skipNumbered && /^\d+\s*[.)]\s*/.test(t)) continue;
+      skipNumbered = false;
       t = t.replace(/^#{1,6}\s*/, '')
            .replace(/^\[공유\]\s*/, '')
            .replace(/\*\*(.+?)\*\*/g, '$1')
