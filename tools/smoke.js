@@ -1025,6 +1025,32 @@ const EXIFB64=makeExifJpegB64();
     must(r.unreg, '닫을 때 스택에서 안 빠집니다 — 뒤로가기가 한 번 헛돕니다');
     return '배너 회피 · 스택 등록 · 해제';
   });
+  /* ☠️ 2026-09-08 현장매니저에서 사용자가 겪은 일 — 모바일 블로그로 공유하니 제목이
+     "[공유] 삼원빌딩 에어컨 청소 — 곰팡이가 이 정도면 … 필요가 있습니다. 삼원" 으로
+     본문 앞부분이 중간에서 잘린 채 들어갔다. 제목을 안 넘기면 앱이 제 마음대로 만든다. */
+  await chk('공유 제목 — 글의 첫 줄을 그대로 쓴다', async()=>{
+    const r=await page.evaluate(()=>{
+      const f=Share.firstLine;
+      return {
+        plain: f('수원집 다녀왔습니다\n\n본문입니다'),
+        share: f('[공유] 제목입니다\n본문'),
+        md:    f('## 제목입니다\n본문'),
+        bold:  f('**굵은 제목**\n본문'),
+        blank: f('\n\n   \n실제 첫 줄\n본문'),
+        mark:  f('(사진: 외관)\n진짜 제목'),
+        long:  f('가'.repeat(150)).length,
+        empty: f('')
+      };
+    });
+    must(r.plain==='수원집 다녀왔습니다','첫 줄을 그대로 못 가져옴: '+r.plain);
+    must(r.share==='제목입니다','[공유] 를 안 떼어 냄: '+r.share);
+    must(r.md==='제목입니다' && r.bold==='굵은 제목','마크다운 기호를 안 떼어 냄');
+    must(r.blank==='실제 첫 줄','빈 줄을 못 건너뜀: '+r.blank);
+    must(r.mark==='진짜 제목','사진 마커 줄을 제목으로 씀: '+r.mark);
+    must(r.long===100,'제목 길이 상한(100)이 안 걸림: '+r.long);
+    must(r.empty==='','빈 글에서 터짐');
+    return '첫 줄 · [공유] 제거 · 마커 건너뜀 · 100자';
+  });
   await chk('사진 URL 캐시에 상한이 있다', async()=>{
     const r=await page.evaluate(()=>({max:Photos.CACHE_MAX, now:Photos.cacheSize()}));
     must(typeof r.max==='number'&&r.max>0,'상한이 없음 — 사진 Blob 이 계속 쌓인다');

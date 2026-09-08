@@ -174,13 +174,42 @@
 
   /* ② 글 복사 + 공유 — 사진은 ① 에서 이미 갤러리로 갔다. 여기서는 글만 넘긴다.
      앱이 텍스트를 받아 주면 본문에 바로 들어가고, 안 받아도 클립보드에 남아 있다. */
+  /* 글의 첫 줄 = 제목 (2026-09-08 사용자 요청, 현장매니저와 같은 처방) ─────────
+     ☠️ 제목을 안 넘기면 블로그 앱이 본문 앞부분을 잘라 제목을 만든다. 현장매니저에서
+        실제로 이렇게 나왔다:
+          "[공유] 삼원빌딩 에어컨 청소 — 곰팡이가 이 정도면 … 필요가 있습니다. 삼원"
+        문장이 중간에서 끊기고 앞에 [공유] 가 붙는다.
+     → 첫 줄을 뽑아 title 로 넘긴다. 안드로이드에서 title 은 EXTRA_SUBJECT 로 가고
+       블로그 앱이 그걸 제목 칸에 넣는다.
+     ⚠️ 본문(text)에서는 첫 줄을 빼지 않는다 — 붙여넣은 글의 제목 줄까지 사라지면
+        사장님이 지운 줄 알고 다시 적게 된다. 제목 칸이 채워질 뿐이다. */
+  var TITLE_MAX = 100;                     // 블로그 제목 칸 상한
+  function firstLine(text) {
+    var lines = String(text || '').replace(/\r/g, '').split('\n');
+    for (var i = 0; i < lines.length; i++) {
+      var t = lines[i].trim();
+      if (!t) continue;
+      t = t.replace(/^#{1,6}\s*/, '')
+           .replace(/^\[공유\]\s*/, '')
+           .replace(/\*\*(.+?)\*\*/g, '$1')
+           .trim();
+      if (!t) continue;
+      if (/^[\(（]\s*(?:사진|이미지)/.test(t)) continue;   // 사진 마커 줄은 제목이 아니다
+      return t.length > TITLE_MAX ? t.slice(0, TITLE_MAX).trim() : t;
+    }
+    return '';
+  }
+
   async function shareTextOnly(chId, text, place) {
     var ch = ClaudeAI.channel(chId);
     var okCopy = copyText(text || '');
     /* ☠️ 공유 시트를 열기 전에 깐다 — 시트가 닫힌 뒤 앱에 남아 있어야 참고가 된다 */
     openRefScreen(text, place);
     try {
-      await _Share().share({ text: text || '', dialogTitle: ch.label + '에 올리기' });
+      var _ti = firstLine(text);
+      var _payload = { text: text || '', dialogTitle: ch.label + '에 올리기' };
+      if (_ti) _payload.title = _ti;
+      await _Share().share(_payload);
       if (!okCopy) showToast('글 복사가 안 됐어요 — 결과 화면에서 다시 복사해주세요', 'err');
     } catch (e) {
       var m = (e && (e.message || e.code)) || '';
@@ -459,7 +488,8 @@
   window.Share = {
     available: available, canPc: canPc,
     open: open, openPc: openPc,
-    collect: collect, STEPS: STEPS
+    collect: collect, STEPS: STEPS,
+    firstLine: firstLine          /* 제목으로 넘기는 첫 줄 — 화면검사가 여기로 확인한다 */
   };
   console.log('[Share] 로드됨, 공유시트:', available(), '| PC링크:', CFG.hasFirebase() && CFG.hasHosting());
 })();
