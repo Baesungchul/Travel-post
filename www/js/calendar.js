@@ -501,11 +501,54 @@
       return (grid.scrollTop + grid.clientHeight) >= (grid.scrollHeight - 4);
     }
 
+    /* ── 끊긴 드래그 되돌리기 (2026-09-08, 현장매니저와 같은 처방) ──────────
+       사용자 신고: "달력을 옆으로 밀거나 아래로 내리는데 중간에 멈추는 경우가 있어"
+
+       ☠️ 드래그 중 화면은 transition:none 에 인라인 transform/height/opacity 가
+          박혀 있다. 이 상태를 풀어 주는 건 오직 '손 뗌' 신호인데, 그 신호가
+          안 오는 길이 셋 있었다.
+            ① 밀던 중 두 번째 손가락이 닿으면 onStart 가 다시 불려 mode 를
+               3(무시)으로 덮어썼다 → 되돌릴 주인이 사라진다.
+            ② 안드로이드가 제스처를 가져갈 때 touchcancel 이 안 오는 기종이 있다.
+            ③ 앱을 내렸다 올리는 사이 touchend 가 유실된다.
+       → 어느 길로 새든 '드래그 중이면 반드시 원래대로' 한 곳에서 되돌린다. */
+    var _wd = null;
+    function _clearWd() { if (_wd) { clearTimeout(_wd); _wd = null; } }
+    function _armWd() {
+      _clearWd();
+      _wd = setTimeout(function () {
+        if (mode === 2 || mode === 4 || mode === 5) {
+          console.warn('[달력] 끊긴 드래그 자동 복구');
+          restoreDrag();
+        }
+      }, 5000);
+    }
+    function restoreDrag() {
+      var was = mode;
+      mode = 0;
+      _clearWd();
+      if (was === 2) { snapBack(); return; }
+      if (was === 4 || was === 5) { _applyExpandedUI(true); root.classList.remove('cal-sizing'); }
+    }
+    /* 드래그가 아닌데 인라인 값이 남아 있으면(어떤 경로로든 새어 나온 것) 지운다 */
+    function sweepStuck() {
+      if (mode !== 0) return;
+      var s = grid.style;
+      if (!s.transform || s.transform === 'none') return;
+      console.warn('[달력] 남아 있던 드래그 흔적 정리');
+      s.transition = 'none'; s.transform = 'none'; s.opacity = '1';
+      grid.classList.remove('cal-anim');
+    }
+
     function onStart(e) {
+      /* ★ 이미 밀고 있는 중에 손가락이 하나 더 닿았다 → 지금 것을 제대로 되돌리고 무시한다 */
+      if (mode === 2 || mode === 4 || mode === 5) { restoreDrag(); mode = 3; return; }
+      sweepStuck();
       if (!e.touches || e.touches.length !== 1) { mode = 3; return; }
       sx = e.touches[0].clientX; sy = e.touches[0].clientY; st = Date.now();
       startedAtBottom = atBottom();
       mode = 1;
+      _armWd();
     }
     function onMove(e) {
       if (mode === 0 || mode === 3) return;
@@ -565,6 +608,7 @@
     }
     function onEnd(e) {
       var was = mode; mode = 0;
+      _clearWd();
       if (was !== 2 && was !== 4 && was !== 5) return;
       _swipeTs = Date.now();
       var t = e.changedTouches && e.changedTouches[0];
@@ -610,11 +654,24 @@
       var on = flick ? (dy > 0) : (prog > 0.4);
       if (on) _setExpanded(true); else _applyExpandedUI(true);
     }
-    function onCancel() {
-      if (mode === 2) snapBack();
-      if (mode === 4 || mode === 5) _applyExpandedUI(true);
-      root.classList.remove('cal-sizing');
-      mode = 0;
+    /* ★ 2026-09-08 — 세 갈래(가로 2 · 펼치기 4 · 접기 5) 되돌리기를 restoreDrag() 한 곳으로
+         모았다. 갈래마다 따로 적어 두면 새 갈래를 만들 때 한 갈래를 빠뜨린다. */
+    function onCancel() { restoreDrag(); }
+
+    /* ☠️ 앱을 내렸다 올리는 사이에는 touchend 가 유실된다 — 돌아왔을 때 밀리다 만
+         화면이 남아 있으면 사용자는 앱이 멈춘 걸로 본다.
+       ⚠️ bindGestures 는 달력을 그릴 때마다 다시 돈다. 여기서 그냥 addEventListener 를
+          하면 열 때마다 한 겹씩 쌓이고, 옛 겹은 이미 사라진 격자를 붙들고 있다.
+          창에 거는 건 딱 한 번, 대상만 최신 것으로 갈아 끼운다. */
+    window.__calRestoreDrag = restoreDrag;
+    window.__calSweepStuck  = sweepStuck;
+    if (!window.__calDragGuardBound) {
+      window.__calDragGuardBound = true;
+      document.addEventListener('visibilitychange', function () {
+        if (document.hidden) { if (window.__calRestoreDrag) window.__calRestoreDrag(); }
+        else if (window.__calSweepStuck) window.__calSweepStuck();
+      });
+      window.addEventListener('blur', function () { if (window.__calRestoreDrag) window.__calRestoreDrag(); });
     }
 
     [grid, grab].forEach(function (el) {

@@ -159,6 +159,16 @@ const gates = [
   ['calendar.js', 'void g2.offsetWidth', '들여오기 시작 위치를 스타일에 강제 반영 (빼면 들어오는 연출이 통째로 사라진다)'],
   ['calendar.js', 'return collect(_y, _m)', 'render 가 프로미스를 돌려준다 (안 그러면 옛 달이 붙은 격자를 밀어 넣는다)'],
   ['calendar.js', 'move(dir2, true)', '끌다 놓으면 그 자리에서 이어서 나간다 (가운데로 되돌리면 한 번 튕긴다)'],
+  /* ☠️ 2026-09-08 사용자 신고(현장매니저와 같은 증상) — "달력을 옆으로 밀거나 아래로
+       내리는데 중간에 멈추는 경우가 있어". 드래그 중 화면은 transition:none 에 인라인
+       transform 이 박혀 있어서, 손 뗌 신호가 안 오면 그 중간값 그대로 굳는다.
+       빠져도 오류가 안 나고 아주 가끔만 재현돼 눈으로는 못 잡는다 — 여기서 지킨다. */
+  ['calendar.js', 'function restoreDrag()', '끊긴 드래그를 한 곳에서 되돌린다 (갈래마다 적으면 하나를 빠뜨린다)'],
+  ['calendar.js', 'restoreDrag(); mode = 3;', '밀던 중 두 번째 손가락이 닿아도 되돌린다 (예전엔 그대로 굳었다)'],
+  ['calendar.js', 'function onCancel() { restoreDrag(); }', 'touchcancel → 되돌리기'],
+  ['calendar.js', 'function _armWd()', '손 뗌 신호가 아예 안 와도 스스로 풀리는 워치독'],
+  ['calendar.js', 'function sweepStuck()', '남아 있던 드래그 흔적 정리'],
+  ['calendar.js', '__calDragGuardBound', '창 리스너를 한 번만 건다 (달력을 열 때마다 쌓이면 누수)'],
   /* ☠️ 2026-09-08 — 현장매니저에서 발행 24시간 뒤 블로그 글의 사진이 전부
        "존재하지 않는 이미지입니다" 로 바뀐 사고가 있었다. 원인은 코드가 아니라
        **문구가 한 약속**이었다("붙여넣으면 네이버가 사진을 자동으로 가져갑니다").
