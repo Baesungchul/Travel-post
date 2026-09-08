@@ -165,6 +165,47 @@
     return true;
   };
 
+  /* ── 마지막 그물: 스택에 안 올라간 전체화면 팝업 (2026-09-08) ──────────────
+     ☠️ 사용자 신고: "참고용 사진자리 보기에서 뒤로가기를 해도 안 닫히고 앱이 닫혀.
+        이건 이전에도 자주 있던 문제인데, 팝업에서 뒤로가기했는데 포커스가 뒤편에 있는 증상이야"
+
+     맞는 진단이었다. 원인은 늘 같다 — overlay() 를 안 쓰고 손으로 만든 전체화면 팝업이
+     _ovStack 에 없어서, 뒤로가기가 그 팝업을 **못 보고** 탭 이동·종료 흐름으로 내려간다.
+     화면에는 팝업이 그대로 떠 있는데 뒤에서 탭이 바뀌거나 앱이 꺼지는 것이다.
+
+     → 스택을 다 훑고도 못 찾았을 때, 화면에 실제로 떠 있는 전체화면 팝업을 직접 찾아 닫는다.
+       새 팝업을 만들며 registerSheet 를 잊어도 사용자가 갇히지는 않는다.
+     ⚠️ 이건 그물이지 대책이 아니다. 손으로 만든 팝업은 그래도 registerSheet 를 부를 것 —
+        여기서는 '어떻게 닫는지'를 모르니 정리(URL 해제 등)를 건너뛴다.
+     ⚠️ 탭바(z-index:200)·배너·토스트를 잡으면 안 된다. 그래서 조건이 빡빡하다:
+        고정 위치 · z ≥ 500 · 화면 대부분을 덮음 · 눈에 보임. */
+  var _BACK_SKIP = { tabbar: 1, camOverlay: 1, toast: 1, busy: 1, fab: 1 };
+  window.closeStrayPopup = function () {
+    try {
+      var nodes = document.querySelectorAll('body > div');
+      var best = null, bestZ = -1;
+      for (var i = 0; i < nodes.length; i++) {
+        var el = nodes[i];
+        if (el.id && _BACK_SKIP[el.id]) continue;
+        var cs = window.getComputedStyle(el);
+        if (cs.position !== 'fixed') continue;
+        if (cs.display === 'none' || cs.visibility === 'hidden' || parseFloat(cs.opacity || '1') === 0) continue;
+        var z = parseInt(cs.zIndex, 10); if (isNaN(z)) z = 0;
+        if (z < 500) continue;
+        var r = el.getBoundingClientRect();
+        if (r.width < window.innerWidth * 0.7 || r.height < window.innerHeight * 0.5) continue;
+        if (z >= bestZ) { bestZ = z; best = el; }
+      }
+      if (!best) return false;
+      console.warn('[뒤로가기] 스택에 없는 팝업을 닫습니다 — registerSheet 를 빠뜨린 곳입니다:', best.id || best.className);
+      /* 닫기 버튼이 있으면 그걸 누른다 — 그 안에 정리 코드가 들어 있을 수 있다 */
+      var cb = best.querySelector('button[id*="Close"], button[id*="close"], button[id*="Cancel"], button[id*="cancel"]');
+      if (cb) { cb.click(); return true; }
+      best.remove();
+      return true;
+    } catch (e) { return false; }
+  };
+
   /* 오버레이 껍데기 — 세로 flex + 본문만 스크롤 (규칙을 코드로 굳혀 둔다) */
   function overlay(opts) {
     opts = opts || {};
@@ -367,6 +408,8 @@
         if (window.isInAppCameraOpen && isInAppCameraOpen()) { closeInAppCamera(); return; }
         /* 1) 열린 팝업(시트/다이얼로그/피커) — 가장 나중에 연 것부터 하나씩 */
         if (window.closeTopOverlay && closeTopOverlay()) return;
+        /* 1-2) 스택에 안 올라간 전체화면 팝업이 떠 있으면 그것부터 (위 closeStrayPopup 주석) */
+        if (window.closeStrayPopup && closeStrayPopup()) return;
         /* 2) 기록 탭 달력이 펼쳐져(전체화면) 있으면 접기 */
         if (document.body.classList.contains('cal-lock')) {
           if (window.Cal && Cal.collapse) Cal.collapse();

@@ -130,8 +130,14 @@
     var ov = document.createElement('div');
     ov.id = 'shRefOv';
     ov.style.cssText = 'position:fixed;inset:0;background:var(--bg);z-index:2600;display:flex;flex-direction:column;';
+    /* ☠️ 2026-09-08 사용자 신고: "참고용 화면에 닫기가 없어"
+         버튼은 있었는데 **네이티브 광고 배너 뒤에 깔려** 안 보였다. 배너는 웹뷰 위에 따로
+         떠 있어서 웹 화면은 그 높이를 모른다 — 그래서 --ad-h 를 여백에 더해야 한다
+         (.hdr 은 이미 그렇게 하고 있다: styles.css 'calc(10px + var(--sa-top) + var(--ad-h))').
+       ⚠️ 이 화면은 공유 시트 뒤에 깔려 있다가 사용자가 최근앱으로 돌아왔을 때 보인다.
+          그때도 배너는 떠 있으므로 배너 높이를 빼면 안 된다. */
     ov.innerHTML =
-      '<div style="flex:none;padding:calc(10px + var(--sa-top,0px)) 14px 10px;border-bottom:1px solid var(--bd);background:var(--sf);">' +
+      '<div style="flex:none;padding:calc(10px + var(--sa-top,0px) + var(--ad-h,0px)) 14px 10px;border-bottom:1px solid var(--bd);background:var(--sf);">' +
         '<div style="display:flex;align-items:center;gap:8px;">' +
           '<div style="flex:1;font-size:15px;font-weight:800;">🖼 참고용 — 사진 자리 미리보기</div>' +
           '<button class="btn ghost sm" id="shRefClose">닫기</button>' +
@@ -145,9 +151,18 @@
         '<div class="pv-empty">사진 불러오는 중…</div>' +
       '</div>';
     document.body.appendChild(ov);
-    ov.querySelector('#shRefClose').onclick = function () {
+    /* ☠️ 2026-09-08 사용자 신고: "뒤로가기해도 안 닫히고 앱이 닫혀"
+         이 화면은 overlay() 로 만들지 않아서 뒤로가기 스택(state.js _ovStack)에 없었다.
+         그래서 뒤로가기가 이 화면을 못 보고 그대로 탭 이동·종료 흐름으로 내려갔다.
+         → registerSheet 로 스택에 올린다. 스스로 만든 전체화면 팝업은 **반드시** 올릴 것.
+       ⚠️ 닫을 때 스택에서 빼지 않으면, 이미 사라진 화면을 닫으려다 뒤로가기가 한 번 먹힌다. */
+    var _unreg = null;
+    var closeRef = function () {
+      if (_unreg) { try { _unreg(); } catch (e) {} _unreg = null; }
       if (ov.parentNode) ov.parentNode.removeChild(ov);
     };
+    if (window.registerSheet) _unreg = registerSheet({ close: closeRef });
+    ov.querySelector('#shRefClose').onclick = closeRef;
     Preview.renderRef(text || '', place).then(function (html) {
       var b = document.getElementById('shRefBody');
       if (b) b.innerHTML = html;

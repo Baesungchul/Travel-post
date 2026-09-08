@@ -979,6 +979,52 @@ const EXIFB64=makeExifJpegB64();
          '마커가 없는 사진에 없는 표시를 지어냈습니다: '+JSON.stringify(r.marks));
     return '줄여 쓴 마커 그대로 · 남은 사진은 표시 없음';
   });
+  /* ☠️ 2026-09-08 사용자 신고 — "팝업에서 뒤로가기했는데 포커스가 뒤편에 있는 증상".
+     손으로 만든 전체화면 팝업이 뒤로가기 스택에 없으면, 화면에는 팝업이 떠 있는데
+     뒤에서 탭이 바뀌거나 앱이 꺼진다. 그물(closeStrayPopup)이 실제로 잡는지 재 본다. */
+  await chk('뒤로가기 — 스택에 없는 전체화면 팝업도 닫힌다', async()=>{
+    const r=await page.evaluate(()=>{
+      const mk=(id,z,full)=>{
+        const d=document.createElement('div'); d.id=id;
+        d.style.cssText='position:fixed;'+(full?'inset:0;':'left:0;right:0;bottom:0;height:40px;')
+          +'background:#123;z-index:'+z+';';
+        document.body.appendChild(d); return d;
+      };
+      const stray=mk('strayTest',2600,true);
+      const closed=closeStrayPopup();
+      const gone=!document.getElementById('strayTest');
+      if(!gone) stray.remove();
+      /* 탭바처럼 낮고 작은 것은 건드리면 안 된다 */
+      const bar=mk('tabbarLike',200,false);
+      const touchedBar=closeStrayPopup();
+      const barGone=!document.getElementById('tabbarLike');
+      bar.remove();
+      /* 진행중 오버레이(#busy)는 뒤로가기로 지우면 안 된다 */
+      const busy=document.getElementById('busy');
+      let busyKept=true;
+      if(busy){ const disp=busy.style.display; busy.style.display='flex';
+        closeStrayPopup(); busyKept=!!document.getElementById('busy'); busy.style.display=disp; }
+      return {closed,gone,touchedBar,barGone,busyKept};
+    });
+    must(r.closed && r.gone, '스택에 없는 전체화면 팝업을 못 닫습니다 — 사용자가 갇힙니다');
+    must(!r.touchedBar && !r.barGone, '탭바처럼 작은 요소까지 닫습니다');
+    must(r.busyKept, '진행중 표시(#busy)를 뒤로가기가 지웁니다');
+    return '갇힌 팝업 닫힘 · 탭바/진행표시는 그대로';
+  });
+  await chk('참고 화면 — 닫기 버튼이 광고 배너에 안 가린다', async()=>{
+    const r=await page.evaluate(()=>{
+      const src=[...document.querySelectorAll('script')].map(s=>s.src).find(s=>/share\.js/.test(s));
+      return fetch(src).then(r=>r.text()).then(t=>({
+        adh:/padding:calc\(10px \+ var\(--sa-top,0px\) \+ var\(--ad-h,0px\)\)/.test(t),
+        reg:/registerSheet\(\{ close: closeRef \}\)/.test(t),
+        unreg:/_unreg\(\)/.test(t)
+      }));
+    });
+    must(r.adh, '참고 화면 머리글이 광고 배너 높이를 안 피합니다 — 닫기 버튼이 배너 뒤에 깔립니다');
+    must(r.reg, '참고 화면이 뒤로가기 스택에 안 올라갑니다');
+    must(r.unreg, '닫을 때 스택에서 안 빠집니다 — 뒤로가기가 한 번 헛돕니다');
+    return '배너 회피 · 스택 등록 · 해제';
+  });
   await chk('사진 URL 캐시에 상한이 있다', async()=>{
     const r=await page.evaluate(()=>({max:Photos.CACHE_MAX, now:Photos.cacheSize()}));
     must(typeof r.max==='number'&&r.max>0,'상한이 없음 — 사진 Blob 이 계속 쌓인다');
