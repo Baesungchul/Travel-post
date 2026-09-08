@@ -468,9 +468,51 @@
     if (extraMemo) ask += '\n\n[추가 메모/강조점]\n' + extraMemo;
     content.push({ type: 'text', text: ask });
 
-    return await callClaude({ max_tokens: 2400, system: sys, messages: [{ role: 'user', content: content }], model: model });
+    var _out = await callClaude({ max_tokens: 2400, system: sys, messages: [{ role: 'user', content: content }], model: model });
+    /* ☠️ 받은 그대로 쓰지 않는다 — 마커를 우리 형식으로 바로잡는다(normalizeMarkers 주석).
+         여기서 고쳐 두면 편집 상자·복사·PC 링크·참고 화면이 모두 같은 글자를 본다. */
+    try { _out = normalizeMarkers(_out, p); } catch (e) { console.warn('[마커] 정리 실패', e && e.message); }
+    return _out;
   }
   AI.generatePost = generatePost;
+
+  /* ── 마커 바로잡기 (2026-09-08, 현장매니저와 같은 처방) ────────────────────
+     현장매니저에서 사용자가 겪은 일: "참고용과 블로그앱에 붙인 텍스트가 달라."
+     AI 가 지침대로 (사진: 수원집 - 외관) 이라 안 적고 (사진: 외관) 으로 줄여 쓰는데,
+     참고 화면은 사진 목록에서 이름을 **계산해** 붙이니 두 글자가 달라진다.
+
+     → 받은 글의 마커를 그 장소의 실제 태그 이름으로 맞춰 준다.
+     ⚠️ 판정 규칙은 preview.js·post.html 의 resolve() 와 같아야 한다 —
+        정확히 같은 이름 먼저, 없으면 서로 포함하는 관계로 느슨하게.
+     ⚠️ 어느 태그에도 안 걸리는 마커는 손대지 않는다(뜻을 지어내면 안 된다).
+     ☠️ 같은 태그의 마커가 두 번 나오면 뒤엣것은 지운다 — 첫 마커가 그 태그의 사진을
+        전부 가져가므로, 두 번째 자리는 넣을 사진이 없는 빈 표시가 된다. */
+  function normalizeMarkers(text, place) {
+    if (!text) return text;
+    var tags = [];
+    try { tags = (window.Place && Place.tags) ? (Place.tags(place) || []) : []; } catch (e) {}
+    if (!tags.length) return text;
+    var used = {};
+    var out = String(text).replace(/[\(（]\s*(?:사진|이미지)\s*[:：\-]?\s*([^)）]*)[\)）]/g,
+      function (whole, label) {
+        var L = String(label || '').trim();
+        if (!L) return whole;
+        var hit = '';
+        for (var i = 0; i < tags.length; i++) { if (tags[i] === L) { hit = tags[i]; break; } }
+        if (!hit) {
+          for (var j = 0; j < tags.length; j++) {
+            if (L.indexOf(tags[j]) >= 0 || tags[j].indexOf(L) >= 0) { hit = tags[j]; break; }
+          }
+        }
+        if (!hit) return whole;            // 모르는 이름 — 그대로 둔다
+        if (used[hit]) return '';          // 이미 쓴 태그 — 넣을 사진이 없다
+        used[hit] = 1;
+        return '(사진: ' + hit + ')';
+      });
+    /* 마커를 지우면 그 줄이 빈 줄로 남는다 — 세 줄 이상 겹치면 두 줄로 줄인다 */
+    return out.replace(/\n{3,}/g, '\n\n');
+  }
+  AI.normalizeMarkers = normalizeMarkers;
 
   /* ═══ 잘린 글 이어서 쓰기 (2026-09-05) ═══════════════════
      wasTruncated() 가 참일 때만 의미가 있다. 이미 나온 글을 assistant 차례로 되돌려주고

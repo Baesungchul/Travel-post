@@ -45,17 +45,18 @@
           같아야 눈으로 대조가 된다(ai.js 의 '(사진: ' + t + ')' 와 같은 형식).
        ☠️ 현장매니저와 다른 점: 여기 마커 하나는 그 태그의 사진을 **여러 장** 받는다.
           그래서 같은 마커가 두 장 이상이면 몇 번째인지도 같이 적는다. */
+    /* ☠️ 2026-09-08 (현장매니저에서 사용자가 겪은 일) — 사진 밑에 적을 글자는
+         **글에 실제로 박힌 마커 그대로** 여야 한다. 사진 목록에서 계산해 붙였더니,
+         AI 가 (사진: 외관) 처럼 줄여 쓴 글에서는 화면과 붙여넣은 글의 글자가 달랐다.
+         → imgs() 가 마커를 만난 자리에서 그 마커 원문을 받아 적는다.
+         여기 caps 는 **마커에 안 걸린 사진**을 설명할 때만 쓴다. */
     var caps = null, capByUrl = {};
     if (opts.captions) {
-      var ord = {}, tot = {};
-      photos.forEach(function (x) {
-        var t = (x && x.tag) || '사진';
-        tot[t] = (tot[t] || 0) + 1;
-      });
+      var ord = {};
       caps = photos.map(function (x) {
         var t = (x && x.tag) || '사진';
         ord[t] = (ord[t] || 0) + 1;
-        return { mark: '(사진: ' + t + ')', nth: tot[t] > 1 ? (ord[t] + '번째') : '' };
+        return t + ' ' + ord[t];
       });
       urls.forEach(function (u, i) { if (u && capByUrl[u] == null) capByUrl[u] = caps[i]; });
     }
@@ -92,16 +93,27 @@
 
     /* data-ph 를 같이 박아 둔다 — 미리보기의 사진도 눌러서 크게 볼 수 있게(viewer.js).
        ⚠️ 복사되는 글은 여전히 마커 그대로다. 바뀌는 건 화면뿐이라는 위 원칙은 그대로다. */
-    function imgs(list) {
-      return list.map(function (u) {
+    function imgs(list, markTx) {
+      /* 마커 하나가 그 태그의 사진을 여러 장 받는다 — 두 장 이상이면 몇 번째인지 덧붙인다 */
+      var many = markTx && list.length > 1;
+      return list.map(function (u, i) {
         var id = idByUrl[u] || '';
         var img = '<img src="' + esc(u) + '"' + (id ? ' data-ph="' + esc(id) + '"' : '') + ' alt="" loading="lazy">';
         if (!caps) return img;
-        /* 참고 화면 — 사진 밑에 글에 박힌 마커를 그대로 적는다 */
-        var c = capByUrl[u] || { mark: '(사진)', nth: '' };
+        /* 참고 화면 — 사진 밑에 글에 박힌 마커를 글자 그대로 적는다 */
+        var cap, sub = '';
+        if (markTx) {
+          cap = String(markTx).replace(/\s+/g, ' ').trim();
+          if (many) sub = (i + 1) + '번째';
+        } else {
+          /* 어느 마커에도 안 걸린 사진 — 글에는 찾을 표시가 없다.
+             없는 표시를 지어내면 사장님이 글에서 그걸 찾다 시간만 버린다. */
+          cap = '글에 표시 없음';
+          sub = capByUrl[u] || '';
+        }
         return '<figure class="pv-fig">' + img +
-               '<figcaption><span class="pv-mk">' + esc(c.mark) + '</span>' +
-               (c.nth ? '<span class="pv-no">' + esc(c.nth) + '</span>' : '') +
+               '<figcaption><span class="pv-mk">' + esc(cap) + '</span>' +
+               (sub ? '<span class="pv-no">' + esc(sub) + '</span>' : '') +
                '</figcaption></figure>';
       }).join('');
     }
@@ -125,7 +137,7 @@
       while ((m = MARK.exec(t)) !== null) {
         hit = true;
         html += para(t.slice(last, m.index));
-        html += imgs(m[2] != null ? takeOne(parseInt(m[2], 10) - 1) : resolve(m[1] || ''));
+        html += imgs(m[2] != null ? takeOne(parseInt(m[2], 10) - 1) : resolve(m[1] || ''), m[0]);
         last = m.index + m[0].length;
       }
       if (hit) { html += para(t.slice(last)); return; }

@@ -951,11 +951,33 @@ const EXIFB64=makeExifJpegB64();
     must(r.imgs===3, '사진 3장이 다 안 나옴 ('+r.imgs+')');
     must(r.marks[0]==='(사진: 외관)' && r.marks[1]==='(사진: 외관)' && r.marks[2]==='(사진: 음식)',
          '사진 밑 마커가 글에 박힌 글자와 다름: '+JSON.stringify(r.marks));
-    /* 같은 마커가 두 장이면 몇 번째인지, 한 장뿐이면 군더더기 없이 */
+    /* 마커 하나가 사진 두 장을 받으면 몇 번째인지, 한 장뿐이면 군더더기 없이 */
     must(r.nos[0]==='1번째' && r.nos[1]==='2번째' && r.nos[2]==='',
          '같은 마커의 순번이 잘못 붙음: '+JSON.stringify(r.nos));
     must(!r.rule && r.txt.indexOf('---')<0, '마크다운 구분선이 글자로 남음');
     return '마커 '+r.marks.join(' · ')+' · 구분선 제거됨';
+  });
+  /* ☠️ 2026-09-08 현장매니저에서 사용자가 겪은 일 — "참고용과 블로그앱에 붙인 텍스트가 달라".
+     AI 가 (사진: 수원집 - 외관) 대신 (사진: 외관) 으로 줄여 써도, 참고 화면은 계산한 이름을
+     보여 줘서 글자가 어긋났다. 이제 화면은 **글에서 만난 마커 원문**을 적는다. */
+  await chk('참고 화면 — AI 가 줄여 쓴 마커도 글자 그대로 보여 준다', async()=>{
+    const r=await page.evaluate(async()=>{
+      const svg=c=>'data:image/svg+xml;base64,'+btoa(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="60" height="40"><rect width="60" height="40" fill="'+c+'"/></svg>');
+      const U={q1:svg('#c33'),q2:svg('#3c3')};
+      const realOrd=Photos.ordered, realUrl=Photos.url;
+      Photos.ordered=()=>[{id:'q1',tag:'수원집 - 외관'},{id:'q2',tag:'수원집 - 음식'}];
+      Photos.url=id=>Promise.resolve(U[id]);
+      const html=await Preview.renderRef('제목\n\n(사진: 외관)\n\n본문\n\n끝', {});
+      Photos.ordered=realOrd; Photos.url=realUrl;
+      const d=document.createElement('div'); d.innerHTML=html;
+      return {marks:[...d.querySelectorAll('figcaption .pv-mk')].map(x=>x.textContent)};
+    });
+    must(r.marks[0]==='(사진: 외관)',
+         '글에는 (사진: 외관) 인데 화면은 다른 글자를 적었습니다: '+JSON.stringify(r.marks));
+    must(r.marks[1]==='글에 표시 없음',
+         '마커가 없는 사진에 없는 표시를 지어냈습니다: '+JSON.stringify(r.marks));
+    return '줄여 쓴 마커 그대로 · 남은 사진은 표시 없음';
   });
   await chk('사진 URL 캐시에 상한이 있다', async()=>{
     const r=await page.evaluate(()=>({max:Photos.CACHE_MAX, now:Photos.cacheSize()}));
